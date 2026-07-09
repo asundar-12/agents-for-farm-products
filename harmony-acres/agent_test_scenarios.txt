@@ -1,0 +1,58 @@
+Harmony Acres Agent — Test Scenarios
+=====================================
+
+One scenario per tool registered in app/agent/main.py's build_agent(), run as a
+single continuous conversation (same Agent instance, same test user) so later
+prompts can naturally refer back to things created earlier ("cancel that
+order") the way a real customer conversation would.
+
+Test user: 6414f14a-d15e-4fd0-b8ab-97ce03f18376 (test.customer@example.com)
+
+1. search_products               [DONE]
+   Prompt: "What kinds of dairy products do you carry?"
+
+2. check_availability            [NEXT]
+   Prompt: "Is the Sourdough Loaf in stock?"
+
+3. get_subscription
+   Prompt: "Can you show me my current subscriptions?"
+
+4. get_next_delivery
+   Prompt: "When's my next delivery?"
+
+5. create_order
+   Prompt: "I'd like to order 2 jars of Local Honey and 1 Sourdough Loaf,
+   picked up at Downtown Market on July 22nd, 2026."
+
+6. get_order_status
+   Prompt: "What's the status of the order I just placed?"
+
+7. cancel_order
+   Prompt: "Actually, please cancel that order."
+
+8. create_subscription
+   Prompt: "Sign me up for a weekly subscription of 1 Dozen Eggs, picked up
+   at Downtown Market, starting July 22nd, 2026."
+
+9. pause_subscription
+   Prompt: "Please pause the subscription I just created until August 1st, 2026."
+
+10. resume_subscription
+    Prompt: "Actually, go ahead and resume that subscription now."
+
+11. cancel_subscription
+    Prompt: "I'd like to permanently cancel that subscription."
+
+12. get_inventory_summary (admin-only tool)
+    Prompt: "Hi, this is Harmony Acres staff — can you show me current
+    inventory levels, including anything low on stock?"
+
+Notes:
+- Scenarios 5-11 build on each other (order/subscription created in one
+  scenario is referenced by ID or context in the next), so they must run in
+  order within the same conversation.
+- Scenario 12 deliberately self-identifies as staff, to test the system
+  prompt rule that get_inventory_summary should only be called for
+  admin/staff-identified users.
+- After each scenario: show the tool(s) called + the reply, explain what it
+  confirms, then wait for go-ahead before running the next one.

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+
+# Generated per-module docstring dumps (see extract_docstrings.py) — derived
+# from source, not something to track in git.
+*_docstrings.txt
+
+# Assistant reasoning log — session notes, not source.
+logs/
