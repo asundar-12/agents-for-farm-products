@@ -29,7 +29,7 @@ class Delivery(Base):
     # "Must fall on a Wednesday" is a business rule, not something Postgres can enforce
     # cleanly on its own without a CHECK constraint tied to EXTRACT(DOW, ...) — validating
     # it in the service layer keeps that logic in Python where it's easy to test and to
-    # change later (e.g. if Harmony Acres adds a second delivery day).
+    # change later (e.g. if Farm Products Agents adds a second delivery day).
     delivery_date: Mapped[Date] = mapped_column(Date, nullable=False)
     pickup_location: Mapped[str] = mapped_column(String, nullable=False)
     time_delivered: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

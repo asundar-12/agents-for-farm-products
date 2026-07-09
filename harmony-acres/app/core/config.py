@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "us.anthropic.claude-opus-4-6-v1"
 
+    # ARN of the deployed AgentCore Runtime, obtained after `agentcore deploy`
+    agent_runtime_arn: str = ""
+
     # Bedrock Guardrails — not wired up yet, reserved for a later iteration
     guardrail_id: str | None = None
     guardrail_version: str | None = None

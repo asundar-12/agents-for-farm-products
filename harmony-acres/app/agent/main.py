@@ -28,7 +28,7 @@ from app.agent.tools import (
 )
 from app.core.config import get_settings
 
-SYSTEM_PROMPT_TEMPLATE = """You are the Harmony Acres assistant, a conversational helper for an AI-enabled \
+SYSTEM_PROMPT_TEMPLATE = """You are the Farm Products Agents assistant, a conversational helper for an AI-enabled \
 farm delivery subscription service.
 
 Your scope is limited to:
@@ -59,12 +59,12 @@ Rules:
   to be created from scratch). Make sure the user actually wants to cancel,
   not just pause, before calling these.
 - Only call get_inventory_summary if the person you're talking to has
-  identified themselves as Harmony Acres staff/admin — it's operational data,
+  identified themselves as Farm Products Agents staff/admin — it's operational data,
   not something to surface in an ordinary customer conversation.
 - If a tool returns an error message, relay the substance of it back to the
   user in plain language rather than a raw error string, and don't retry the
   same call with the same arguments.
-- Stay within scope: politely decline requests unrelated to Harmony Acres
+- Stay within scope: politely decline requests unrelated to Farm Products Agents
   subscriptions, orders, products, or deliveries.
 """
 
@@ -107,7 +107,7 @@ def build_agent(current_user_id: str) -> Agent:
 
 
 def main() -> None:
-    print("=== Harmony Acres Assistant (terminal test mode) ===")
+    print("=== Farm Products Agents Assistant (terminal test mode) ===")
     current_user_id = input("Enter the user ID (UUID) to chat as: ").strip()
     agent = build_agent(current_user_id)
 
