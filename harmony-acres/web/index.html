@@ -324,7 +324,10 @@
     const pending = addMessage("assistant pending", "Thinking…");
 
     try {
-      const res = await fetch(`${API_BASE}/agent/chat`, {
+      // EventSource can't send an Authorization header, so we stream over a
+      // normal POST with fetch and read the SSE body off the response stream
+      // ourselves.
+      const res = await fetch(`${API_BASE}/agent/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -344,12 +347,57 @@
         throw new Error(detail.detail || `Request failed (${res.status})`);
       }
 
-      const data = await res.json();
-      sessionId = data.session_id;
-      localStorage.setItem("ha_session_id", sessionId);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let answer = "";
+      let started = false;
 
-      pending.classList.remove("pending");
-      pending.textContent = data.result;
+      // SSE frames are separated by a blank line ("\n\n"). We accumulate bytes
+      // into a buffer and pull off whole frames as they complete; a partial
+      // frame stays in the buffer until the rest arrives.
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let sep;
+        while ((sep = buffer.indexOf("\n\n")) !== -1) {
+          const frame = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          if (!frame.startsWith("data: ")) continue;
+
+          let payload;
+          try {
+            payload = JSON.parse(frame.slice(6));
+          } catch {
+            continue;
+          }
+
+          if (typeof payload === "string") {
+            // A text delta. First one clears the "Thinking…" placeholder.
+            if (!started) {
+              pending.classList.remove("pending");
+              pending.textContent = "";
+              started = true;
+            }
+            answer += payload;
+            pending.textContent = answer;
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          } else if (payload && payload.session_id) {
+            sessionId = payload.session_id;
+            localStorage.setItem("ha_session_id", sessionId);
+          }
+          // payload.done needs no action — the loop ends when the body closes.
+        }
+      }
+
+      // A reply that streamed nothing at all — surface it rather than leaving
+      // an empty bubble.
+      if (!started) {
+        pending.classList.remove("pending");
+        pending.textContent = "(no response)";
+      }
     } catch (err) {
       pending.remove();
       addMessage("error", err.message);

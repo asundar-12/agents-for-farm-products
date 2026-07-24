@@ -20,12 +20,19 @@ app = BedrockAgentCoreApp()
 
 
 @app.entrypoint
-def invoke(payload: dict) -> dict:
+async def invoke(payload: dict):
     """Called once per request to POST /invocations.
 
     `payload` is exactly the JSON body our FastAPI backend sends via
     boto3's invoke_agent_runtime(payload=...). We control its shape end to
     end (see app/routers/agent.py), so we can require whatever keys we want.
+
+    This is an async generator, which BedrockAgentCoreApp turns into a
+    streaming (text/event-stream) response automatically — each object we
+    yield is serialized as one `data: <json>\\n\\n` SSE frame. Streaming lets
+    the UI render the reply token-by-token with a typing indicator instead of
+    waiting for the whole thing. The backend's non-streaming /agent/chat still
+    works: it just concatenates every delta back into one string.
     """
     user_id = payload["user_id"]
     message = payload["prompt"]
@@ -48,9 +55,14 @@ def invoke(payload: dict) -> dict:
     else:
         agent = build_agent(user_id, session_id)
 
-    result = agent(message)
-
-    return {"result": str(result)}
+    # Strands yields many event types (tool use, lifecycle, etc.); we forward
+    # only the text deltas (events carrying "data"). Wrapping each in a small
+    # dict rather than yielding the bare string keeps the frame self-describing
+    # and leaves room to add other frame types (e.g. errors) later without the
+    # backend having to guess.
+    async for event in agent.stream_async(message):
+        if "data" in event:
+            yield {"delta": event["data"]}
 
 
 # AgentCore's container entrypoint runs this file directly (not through
