@@ -7,11 +7,15 @@ from strands import tool
 
 from app.core.db import AsyncSessionLocal
 from app.models.product import ProductCategory
-from app.schemas.inventory import InventorySummaryItem
 from app.schemas.order import OrderCreate, OrderItemCreate, OrderRead
 from app.schemas.product import ProductAvailability, ProductRead
-from app.schemas.subscription import SubscriptionCreate, SubscriptionItemCreate, SubscriptionRead
-from app.services import inventory_service, order_service, product_service, subscription_service
+from app.schemas.subscription import (
+    SubscriptionCreate,
+    SubscriptionItemCreate,
+    SubscriptionRead,
+    SubscriptionUpdate,
+)
+from app.services import cycle_service, order_service, product_service, subscription_service
 
 
 def _parse_uuid(value: str, field_name: str) -> uuid.UUID:
@@ -169,13 +173,18 @@ async def search_products(query: str | None = None, category: str | None = None)
 
 @tool
 async def check_availability(product_id: str) -> dict | str:
-    """Check whether a specific product is currently available and how many units are on hand.
+    """Check whether the farm is carrying a specific product this season.
+
+    Farm Product Agent forwards customer demand to the farm rather than holding
+    stock, so there is no "units on hand" to report — availability is simply
+    whether the item is on offer. Never tell a customer a quantity is or isn't
+    in stock.
 
     Args:
         product_id: UUID of the product to check.
 
     Returns:
-        A dict with availability and quantity on hand, or an error string.
+        A dict with the product's availability, or an error string.
     """
     try:
         pid = _parse_uuid(product_id, "product_id")
@@ -191,49 +200,55 @@ async def check_availability(product_id: str) -> dict | str:
 
 
 @tool
-async def get_inventory_summary() -> dict | str:
-    """Get stock levels for every product, including which items are low on stock.
+async def get_current_week() -> dict | str:
+    """Find out which week customers are ordering into and when the deadline is.
 
-    Admin context only — this reflects operational inventory data, not
-    something a customer-facing conversation should surface. Only call this
-    when you know you're assisting an admin/staff user.
+    Call this before placing an order or promising a delivery date — orders can
+    only be placed while the current week is open, and the delivery date is
+    fixed by the cycle rather than chosen by the customer.
 
     Returns:
-        A dict with per-product quantity on hand, low-stock threshold, and a
-        low-stock flag, or an error string.
+        A dict with the week's delivery date, submission deadline, and whether
+        ordering is still open, or an error string.
     """
     try:
         async with AsyncSessionLocal() as db:
-            summary = await inventory_service.get_inventory_summary(db)
-            return {"inventory": [item.model_dump(mode="json") for item in summary]}
+            cycle = await cycle_service.get_or_create_current_cycle(db)
+            return {
+                "week_start": cycle.week_start.isoformat(),
+                "delivery_date": cycle.delivery_date.isoformat(),
+                "submission_deadline": cycle.submission_deadline.isoformat(),
+                "is_open": cycle_service.is_open(cycle),
+                "status": cycle.status.value,
+            }
     except Exception:
-        return "Error: something went wrong loading the inventory summary. Please try again."
+        return "Error: something went wrong looking up this week's ordering window. Please try again."
 
 
 @tool
-async def create_order(user_id: str, pickup_location: str, order_date: str, items: list[dict]) -> dict | str:
-    """Place a one-time order for a customer.
+async def create_order(user_id: str, pickup_location: str, items: list[dict], note: str | None = None) -> dict | str:
+    """Place an order for the current week and submit it immediately.
 
-    Validates that every product exists and is available, that there's enough
-    stock on hand for the requested quantities, and computes the total cost at
-    current prices. Deliveries/pickups only happen on Wednesdays, so order_date
-    must fall on one.
+    Validates that every product exists and is being carried, then computes the
+    total at current prices. The order joins this week's consolidated order, so
+    its delivery date comes from the cycle — there is no date to pass, and the
+    call fails if the week's deadline has already passed.
 
     Args:
         user_id: UUID of the customer placing the order.
         pickup_location: Where the order will be picked up.
-        order_date: The Wednesday this order should be ready, as YYYY-MM-DD.
         items: List of objects, each with "product_id" (UUID string) and
             "quantity" (positive integer). Must contain at least one item.
+        note: Optional message for the farm admin about this order.
 
     Returns:
-        A dict with the created order (including total_amount), or an error string.
+        A dict with the created order (including total_amount and the delivery
+        date it landed on), or an error string.
     """
     try:
         uid = _parse_uuid(user_id, "user_id")
-        parsed_date = _parse_date(order_date, "order_date")
         parsed_items = _parse_items(items, OrderItemCreate)
-        order_data = OrderCreate(pickup_location=pickup_location, order_date=parsed_date, items=parsed_items)
+        order_data = OrderCreate(pickup_location=pickup_location, items=parsed_items, note=note)
         async with AsyncSessionLocal() as db:
             order = await order_service.create_order(db, uid, order_data)
             return OrderRead.model_validate(order).model_dump(mode="json")
@@ -247,12 +262,12 @@ async def create_order(user_id: str, pickup_location: str, order_date: str, item
 
 @tool
 async def cancel_order(user_id: str, order_id: str) -> dict | str:
-    """Cancel a one-time order before it enters fulfillment.
+    """Cancel an order before its week's deadline passes.
 
-    Only orders still in "pending" or "confirmed" status can be cancelled —
-    once staff have marked it "ready" or later, it's too late. Cancelling
-    restores the ordered quantities back to inventory and issues a full refund
-    of the order's total_amount.
+    Once the week closes, the order is part of a consolidated purchase the
+    admin has likely already placed with the farm, and cancelling is no longer
+    the customer's to do — they'd need to contact the farm directly. Cancelling
+    in time issues a full refund of the order's total_amount.
 
     Args:
         user_id: UUID of the customer who placed the order (must own it).
@@ -318,6 +333,60 @@ async def create_subscription(
         return f"Error: {exc}"
     except Exception:
         return "Error: something went wrong creating the subscription. Please try again."
+
+
+@tool
+async def update_subscription(
+    user_id: str,
+    subscription_id: str,
+    pickup_location: str | None = None,
+    frequency: str | None = None,
+    next_delivery_date: str | None = None,
+    items: list[dict] | None = None,
+) -> dict | str:
+    """Update one or more details of an existing subscription.
+
+    Only pass the fields the customer actually wants to change — omit the
+    rest and they'll be left as-is. Cannot be used on a cancelled
+    subscription (create a new one instead).
+
+    Args:
+        user_id: UUID of the customer who owns the subscription.
+        subscription_id: UUID of the subscription to update.
+        pickup_location: New pickup location, or omit to leave unchanged.
+        frequency: New frequency, one of "weekly", "biweekly", "monthly", or omit to leave unchanged.
+        next_delivery_date: New next delivery date as YYYY-MM-DD (must be a
+            Wednesday), or omit to leave unchanged.
+        items: New full list of items (each an object with "product_id" and
+            "quantity"), replacing the existing item list entirely, or omit
+            to leave the items unchanged.
+
+    Returns:
+        A dict with the updated subscription, or an error string.
+    """
+    try:
+        uid = _parse_uuid(user_id, "user_id")
+        sid = _parse_uuid(subscription_id, "subscription_id")
+        parsed_date = _parse_date(next_delivery_date, "next_delivery_date") if next_delivery_date is not None else None
+        parsed_items = _parse_items(items, SubscriptionItemCreate) if items is not None else None
+        try:
+            update_data = SubscriptionUpdate(
+                pickup_location=pickup_location,
+                frequency=frequency,
+                next_delivery_date=parsed_date,
+                items=parsed_items,
+            )
+        except ValidationError as exc:
+            return f"Error: {exc.errors()[0]['msg']}"
+        async with AsyncSessionLocal() as db:
+            subscription = await subscription_service.update_subscription(db, uid, sid, update_data)
+            return SubscriptionRead.model_validate(subscription).model_dump(mode="json")
+    except HTTPException as exc:
+        return f"Error: {exc.detail}"
+    except ValueError as exc:
+        return f"Error: {exc}"
+    except Exception:
+        return "Error: something went wrong updating the subscription. Please try again."
 
 
 @tool

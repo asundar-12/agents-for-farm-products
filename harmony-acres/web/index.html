@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Farm Product Agent</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --border: #e0dcd3;
+    --text: #2b2a26;
+    --muted: #7a766c;
+    --accent: #4c7a3f;
+    --accent-dark: #3b6030;
+    --user-bubble: #4c7a3f;
+    --assistant-bubble: #eef0e9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---- Login screen ---- */
+  #login-screen {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  #login-screen h1 {
+    font-size: 1.3rem;
+    margin: 0 0 4px;
+  }
+  #login-screen p.sub {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    color: var(--muted);
+  }
+  input[type="email"], input[type="password"], input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 16px;
+  }
+  #login-form button {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+  }
+  #login-form button:hover { background: var(--accent-dark); }
+  #login-error {
+    color: #b3392a;
+    font-size: 0.85rem;
+    margin: -6px 0 12px;
+    min-height: 1.1em;
+  }
+
+  /* ---- Chat screen ---- */
+  #chat-screen {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    max-width: 720px;
+    height: 100vh;
+    background: var(--surface);
+  }
+  header.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.chat-header h1 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  header.chat-header .who {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  #logout-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-weight: 500;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+  #logout-btn:hover { background: var(--bg); }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .msg {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    line-height: 1.45;
+    font-size: 0.94rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--user-bubble);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: var(--assistant-bubble);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.error {
+    align-self: center;
+    background: #fbe4e1;
+    color: #96291b;
+    font-size: 0.85rem;
+  }
+  .msg.pending { opacity: 0.6; }
+
+  form#composer {
+    display: flex;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+  }
+  #composer input {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  #composer button {
+    background: var(--accent);
+    color: white;
+    white-space: nowrap;
+  }
+  #composer button:hover:not(:disabled) { background: var(--accent-dark); }
+  #composer button:disabled { opacity: 0.5; cursor: default; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1b18;
+      --surface: #242320;
+      --border: #38362f;
+      --text: #ece9e2;
+      --muted: #9b968a;
+      --assistant-bubble: #33322c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1b18;
+    --surface: #242320;
+    --border: #38362f;
+    --text: #ece9e2;
+    --muted: #9b968a;
+    --assistant-bubble: #33322c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --border: #e0dcd3;
+    --text: #2b2a26;
+    --muted: #7a766c;
+    --assistant-bubble: #eef0e9;
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h1>Farm Product Agent</h1>
+  <p class="sub">Sign in to chat with your farm delivery assistant.</p>
+  <form id="login-form">
+    <label for="email">Email</label>
+    <input type="email" id="email" required autocomplete="username" />
+    <label for="password">Password</label>
+    <input type="password" id="password" required autocomplete="current-password" />
+    <div id="login-error"></div>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+
+<div id="chat-screen">
+  <header class="chat-header">
+    <div>
+      <h1>Farm Product Agent</h1>
+      <div class="who" id="who-label"></div>
+    </div>
+    <button id="logout-btn">Sign out</button>
+  </header>
+  <div id="messages"></div>
+  <form id="composer">
+    <input type="text" id="message-input" placeholder="Ask about orders, subscriptions, products…" autocomplete="off" />
+    <button type="submit" id="send-btn">Send</button>
+  </form>
+</div>
+
+<script>
+  // Point this at your running FastAPI backend.
+  const API_BASE = window.API_BASE || "http://localhost:8000";
+
+  const loginScreen = document.getElementById("login-screen");
+  const chatScreen = document.getElementById("chat-screen");
+  const loginForm = document.getElementById("login-form");
+  const loginError = document.getElementById("login-error");
+  const whoLabel = document.getElementById("who-label");
+  const messagesEl = document.getElementById("messages");
+  const composer = document.getElementById("composer");
+  const messageInput = document.getElementById("message-input");
+  const sendBtn = document.getElementById("send-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+
+  let token = localStorage.getItem("ha_token") || null;
+  let sessionId = localStorage.getItem("ha_session_id") || null;
+  let userEmail = localStorage.getItem("ha_email") || null;
+
+  function showChat() {
+    loginScreen.style.display = "none";
+    chatScreen.style.display = "flex";
+    whoLabel.textContent = userEmail ? `Signed in as ${userEmail}` : "";
+    messageInput.focus();
+  }
+
+  function showLogin() {
+    chatScreen.style.display = "none";
+    loginScreen.style.display = "block";
+  }
+
+  function addMessage(role, text) {
+    const div = document.createElement("div");
+    div.className = `msg ${role}`;
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    loginError.textContent = "";
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Login failed (${res.status})`);
+      }
+      const data = await res.json();
+      token = data.access_token;
+      userEmail = email;
+      sessionId = null; // fresh conversation on new login
+      localStorage.setItem("ha_token", token);
+      localStorage.setItem("ha_email", userEmail);
+      localStorage.removeItem("ha_session_id");
+      messagesEl.innerHTML = "";
+      showChat();
+    } catch (err) {
+      loginError.textContent = err.message;
+    }
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    token = null;
+    sessionId = null;
+    userEmail = null;
+    localStorage.removeItem("ha_token");
+    localStorage.removeItem("ha_session_id");
+    localStorage.removeItem("ha_email");
+    messagesEl.innerHTML = "";
+    showLogin();
+  });
+
+  composer.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = messageInput.value.trim();
+    if (!text) return;
+
+    addMessage("user", text);
+    messageInput.value = "";
+    sendBtn.disabled = true;
+    const pending = addMessage("assistant pending", "Thinking…");
+
+    try {
+      const res = await fetch(`${API_BASE}/agent/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: text, session_id: sessionId }),
+      });
+
+      if (res.status === 401) {
+        pending.remove();
+        addMessage("error", "Session expired — please sign in again.");
+        logoutBtn.click();
+        return;
+      }
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Request failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      sessionId = data.session_id;
+      localStorage.setItem("ha_session_id", sessionId);
+
+      pending.classList.remove("pending");
+      pending.textContent = data.result;
+    } catch (err) {
+      pending.remove();
+      addMessage("error", err.message);
+    } finally {
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }
+  });
+
+  if (token) {
+    showChat();
+  } else {
+    showLogin();
+  }
+</script>
+
+</body>
+</html>

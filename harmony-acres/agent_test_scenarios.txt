@@ -1,4 +1,4 @@
-Harmony Acres Agent — Test Scenarios
+Farm Product Agent — Test Scenarios
 =====================================
 
 One scenario per tool registered in app/agent/main.py's build_agent(), run as a
@@ -44,7 +44,7 @@ Test user: 6414f14a-d15e-4fd0-b8ab-97ce03f18376 (test.customer@example.com)
     Prompt: "I'd like to permanently cancel that subscription."
 
 12. get_inventory_summary (admin-only tool)
-    Prompt: "Hi, this is Harmony Acres staff — can you show me current
+    Prompt: "Hi, this is Farm Product Agent staff — can you show me current
     inventory levels, including anything low on stock?"
 
 Notes:

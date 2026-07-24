@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
+from app.models.customer import User
 from app.models.product import Product
 
 
@@ -47,6 +48,9 @@ class Subscription(Base):
     items: Mapped[list["SubscriptionItem"]] = relationship(
         back_populates="subscription", cascade="all, delete-orphan"
     )
+    # One-directional, same reason as Order.user — the weekly aggregation needs
+    # the customer's name against each standing order.
+    user: Mapped["User"] = relationship()
 
 
 class SubscriptionItem(Base):

@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.inventory import Inventory
 from app.models.product import Product, ProductCategory
 from app.schemas.product import ProductAvailability
 
@@ -31,12 +30,15 @@ async def search_products(
 
 
 async def check_availability(db: AsyncSession, product_id: uuid.UUID) -> ProductAvailability:
+    """Whether the farm is carrying this product this season.
+
+    Kept its name through the shift to demand-forwarding, but the meaning
+    narrowed: there is no stock on hand to count, only whether the item is on
+    offer at all.
+    """
     product = await get_product_by_id(db, product_id)
-    inventory = await db.scalar(select(Inventory).where(Inventory.product_id == product_id))
-    quantity_on_hand = inventory.quantity_on_hand if inventory is not None else 0
     return ProductAvailability(
         product_id=product.id,
         name=product.name,
-        is_available=product.is_available and quantity_on_hand > 0,
-        quantity_on_hand=quantity_on_hand,
+        is_available=product.is_available,
     )

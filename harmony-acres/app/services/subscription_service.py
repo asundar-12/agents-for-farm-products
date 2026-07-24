@@ -157,6 +157,11 @@ async def update_subscription(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot modify a cancelled subscription"
         )
 
+    if data.pickup_location is not None:
+        subscription.pickup_location = data.pickup_location
+    if data.next_delivery_date is not None:
+        assert_wednesday(data.next_delivery_date, "next_delivery_date")
+        subscription.next_delivery_date = data.next_delivery_date
     if data.frequency is not None:
         subscription.frequency = data.frequency
     if data.items is not None:

@@ -24,8 +24,18 @@ async def chat(
     settings = get_settings()
     session_id = data.session_id or str(uuid.uuid4())
 
+    # role comes straight from the decoded JWT (get_current_user validated the
+    # signature), not from the request body — the client can't choose which
+    # assistant it talks to. The runtime uses this to pick the customer or admin
+    # agent. Same endpoint for both, so nothing about the URL leaks which one a
+    # caller reaches.
     payload = json.dumps(
-        {"user_id": current_user.user_id, "prompt": data.message}
+        {
+            "user_id": current_user.user_id,
+            "role": current_user.role,
+            "prompt": data.message,
+            "session_id": session_id,
+        }
     ).encode("utf-8")
 
     try:

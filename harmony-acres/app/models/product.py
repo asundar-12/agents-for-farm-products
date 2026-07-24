@@ -25,5 +25,12 @@ class Product(Base):
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     # Numeric (not Float) for money — avoids binary floating-point rounding errors.
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # What one unit of unit_price buys — "gallon", "dozen", "lb". The catalog
+    # card renders "$6.50 / gallon", so this is required rather than optional;
+    # "each" is the fallback for countable goods.
+    unit: Mapped[str] = mapped_column(String, nullable=False, default="each")
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # In the demand-forwarding model this means "the farm is carrying this item
+    # this season", not "there are units on a shelf somewhere."
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

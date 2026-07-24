@@ -42,7 +42,9 @@ class SubscriptionCreate(BaseModel):
 
 
 class SubscriptionUpdate(BaseModel):
+    pickup_location: str | None = None
     frequency: SubscriptionFrequency | None = None
+    next_delivery_date: date | None = None
     items: list[SubscriptionItemCreate] | None = None
 
 

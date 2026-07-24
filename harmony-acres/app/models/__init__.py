@@ -9,3 +9,4 @@ from app.models.inventory import Delivery, DeliveryPickup, Inventory  # noqa: F4
 from app.models.order import Order, OrderItem  # noqa: F401
 from app.models.product import Product  # noqa: F401
 from app.models.subscription import Subscription, SubscriptionItem  # noqa: F401
+from app.models.weekly import CycleStatus, WeeklyCycle, WeeklyOrderLine  # noqa: F401

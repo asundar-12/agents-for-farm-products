@@ -1,0 +1,32 @@
+In that case, I'd make one change to your strategy:
+
+**Design the web app as a Progressive Web App (PWA) from day one.**
+
+### Recommended Frontend Stack
+
+* ✅ Next.js 15 (App Router)
+* ✅ React 19
+* ✅ TypeScript
+* ✅ Tailwind CSS
+* ✅ shadcn/ui
+* ✅ Lucide React
+* ✅ TanStack Query ⭐
+* ✅ React Hook Form + Zod ⭐
+* ✅ Framer Motion (light use)
+* ✅ `next-pwa` (or equivalent PWA support)
+
+### Mobile-first UI Guidelines
+
+* Bottom navigation (Dashboard, Order, Subscriptions, AI)
+* Product cards with large `+` / `−` buttons (44px+ touch targets)
+* Sticky order summary at the bottom
+* Responsive layouts for phone, tablet, and desktop
+* Minimal typing—most interactions should be taps
+
+This gives you:
+
+* 📱 Excellent experience on iPhone and Android browsers immediately
+* 💻 Full desktop support for the admin dashboard
+* 🚀 A straightforward path to a React Native app later using the same backend
+
+Given your users (families placing weekly grocery orders), I'd prioritize **mobile-first responsive design** over a desktop-first layout. Most customers will likely place their orders from their phones, while the admin dashboard can take advantage of larger screens.

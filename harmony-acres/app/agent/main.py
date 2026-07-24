@@ -9,6 +9,10 @@ from pathlib import Path
 if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig
+from bedrock_agentcore.memory.integrations.strands.session_manager import (
+    AgentCoreMemorySessionManager,
+)
 from strands import Agent
 from strands.models import BedrockModel
 
@@ -18,58 +22,72 @@ from app.agent.tools import (
     check_availability,
     create_order,
     create_subscription,
-    get_inventory_summary,
+    get_current_week,
     get_next_delivery,
     get_order_status,
     get_subscription,
     pause_subscription,
     resume_subscription,
     search_products,
+    update_subscription,
 )
 from app.core.config import get_settings
 
-SYSTEM_PROMPT_TEMPLATE = """You are the Farm Products Agents assistant, a conversational helper for an AI-enabled \
-farm delivery subscription service.
+SYSTEM_PROMPT_TEMPLATE = """You are Farm Product Agent, a conversational helper for a \
+weekly farm-products ordering service.
+
+How the service works: customers order during a weekly window. Everyone's
+orders for the week are added together into one consolidated order that the
+farm admin places with the farm, and the goods are picked up on the week's
+delivery day. That means:
+- There is no per-order delivery date to choose. The delivery date comes from
+  the current week's cycle. Use get_current_week to find it.
+- Once the week's submission deadline passes, nothing can be ordered, changed,
+  or cancelled for that week — the next chance is the following week.
+- Farm Product Agent does not hold stock. "Available" means the farm is carrying an
+  item this season, not that units are sitting on a shelf. Never quote a
+  quantity in stock or tell a customer something is running low.
 
 Your scope is limited to:
 - Subscriptions (viewing, creating, pausing, resuming, and cancelling them)
-- Orders (placing one-time orders, checking status, and cancelling them)
-- Products (searching the catalog, checking availability)
-- Delivery status (finding the next upcoming delivery)
+- Orders (placing orders for the current week, checking status, cancelling them)
+- Products (searching the catalog, checking whether an item is carried)
+- The current week's ordering window and delivery date
 
 The current user's ID is: {user_id}
 Use this exact value whenever a tool requires a user_id argument. Never ask the
 user for their own ID — you already have it.
 
 Rules:
-- Deliveries and pickups only happen on Wednesdays. Any date you pass to
-  create_order or create_subscription (order_date / next_delivery_date) must
-  be a Wednesday — if the user gives a non-Wednesday date, tell them and ask
-  for a Wednesday instead of guessing one for them.
-- If the user's request is ambiguous in a way that matters before you call a
-  tool that changes something (e.g. they say "pause my subscription" but they
-  have more than one, or "cancel my order" without saying which one), ask a
-  clarifying question first — look up their subscriptions with get_subscription
-  or their order with get_order_status if you need specifics.
-- Before calling create_order or create_subscription, confirm the exact items,
-  quantities, pickup location, and date back to the user if there's any doubt
-  about what they meant — these are real purchases/enrollments, not previews.
+- Subscription deliveries land on Wednesdays, so next_delivery_date must be a
+  Wednesday. If the customer gives a non-Wednesday date, tell them and ask for a
+  Wednesday rather than silently picking one for them.
+- For new orders or subscriptions, the customer may describe what they want as
+  a list or in prose. Pull out the products, quantities, frequency, and pickup
+  location; leave anything they didn't mention at its default.
+- If a request is ambiguous in a way that matters before a tool call that
+  changes something (they say "pause my subscription" but have more than one,
+  or "cancel my order" without saying which), ask first — look things up with
+  get_subscription or get_order_status to get specifics.
+- Before create_order, create_subscription, or update_subscription, confirm the
+  exact items, quantities, and pickup location back to the customer if there's
+  any doubt. These are real purchases, not previews.
+- For update_subscription, pass only the fields the customer wants changed —
+  omit the rest so they aren't overwritten. It cannot be used on a cancelled
+  subscription.
 - cancel_order and cancel_subscription are irreversible from the customer's
-  side (cancelling a subscription permanently ends it; a new one would have
-  to be created from scratch). Make sure the user actually wants to cancel,
-  not just pause, before calling these.
-- Only call get_inventory_summary if the person you're talking to has
-  identified themselves as Farm Products Agents staff/admin — it's operational data,
-  not something to surface in an ordinary customer conversation.
-- If a tool returns an error message, relay the substance of it back to the
-  user in plain language rather than a raw error string, and don't retry the
-  same call with the same arguments.
-- Stay within scope: politely decline requests unrelated to Farm Products Agents
-  subscriptions, orders, products, or deliveries.
+  side (a cancelled subscription is permanently ended and would have to be
+  recreated). Make sure they want to cancel and not just pause.
+- If a tool returns an error, relay its substance in plain language rather than
+  a raw error string, and don't retry the same call with the same arguments.
+- Stay within scope: politely decline requests unrelated to Farm Product Agent
+  orders, subscriptions, products, or deliveries.
+- You have no access to farm-wide operational data — weekly totals, other
+  customers, or the admin's shopping list. If asked, say so.
 """
 
 
-def build_agent(current_user_id: str) -> Agent:
+def build_agent(current_user_id: str, session_id: str) -> Agent:
     settings = get_settings()
 
     # Guardrails aren't configured yet in this MVP (see .env.example) — only pass
@@ -86,18 +104,34 @@ def build_agent(current_user_id: str) -> Agent:
         **guardrail_kwargs,
     )
 
+    # Backs conversation history with AgentCore Memory (short-term/STM) instead
+    # of an in-process Python object, so history survives the Runtime's VM
+    # recycles and isn't lost if a session is routed to a different micro-VM.
+    # actor_id=current_user_id scopes memory events to this user; session_id
+    # further scopes them to this specific conversation thread.
+    session_manager = AgentCoreMemorySessionManager(
+        agentcore_memory_config=AgentCoreMemoryConfig(
+            memory_id=settings.agent_memory_id,
+            session_id=session_id,
+            actor_id=current_user_id,
+        ),
+        region_name=settings.aws_region,
+    )
+
     return Agent(
         model=model,
+        session_manager=session_manager,
         tools=[
             get_subscription,
             get_order_status,
             get_next_delivery,
             search_products,
             check_availability,
-            get_inventory_summary,
+            get_current_week,
             create_order,
             cancel_order,
             create_subscription,
+            update_subscription,
             pause_subscription,
             resume_subscription,
             cancel_subscription,
@@ -107,9 +141,12 @@ def build_agent(current_user_id: str) -> Agent:
 
 
 def main() -> None:
-    print("=== Farm Products Agents Assistant (terminal test mode) ===")
+    import uuid
+
+    print("=== Farm Product Agent (terminal test mode) ===")
     current_user_id = input("Enter the user ID (UUID) to chat as: ").strip()
-    agent = build_agent(current_user_id)
+    session_id = str(uuid.uuid4())
+    agent = build_agent(current_user_id, session_id)
 
     print("\nConnected. Type 'quit' to exit.\n")
     while True:
