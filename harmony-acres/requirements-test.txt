@@ -1,0 +1,5 @@
+# Test-only dependencies. Install with:
+#   pip install -r requirements-test.txt
+# Everything else (fastapi, sqlalchemy, asyncpg, httpx) is already a runtime dep.
+pytest>=9,<10
+pytest-asyncio>=1,<2
