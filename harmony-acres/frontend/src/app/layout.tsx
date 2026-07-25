@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Farm Product Agent",
   description: "Order your weekly farm delivery.",
+  // Tells iOS to treat the installed app as a standalone web app (no browser
+  // chrome) and names it on the home screen.
+  appleWebApp: { capable: true, title: "Farm Order", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#16a34a",
 };
 
 export default function RootLayout({
