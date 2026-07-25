@@ -8,12 +8,34 @@ Full legal path: open -> locked -> aggregated -> approved -> ordered -> received
 -> closed, plus two legal step-backs (locked->open, aggregated<-approved reject).
 """
 
+from decimal import Decimal
+
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 
-from app.models.weekly import CycleStatus
+from app.models.weekly import CycleStatus, WeeklyOrderLine
 from app.services import cycle_service
-from tests.factories import make_cycle
+from tests.factories import make_cycle, make_product
+
+
+async def _snapshot_line_count(db, cycle_id) -> int:
+    rows = await db.scalars(select(WeeklyOrderLine).where(WeeklyOrderLine.cycle_id == cycle_id))
+    return len(rows.all())
+
+
+async def _add_snapshot_line(db, cycle, product) -> None:
+    db.add(
+        WeeklyOrderLine(
+            cycle_id=cycle.id,
+            product_id=product.id,
+            order_quantity=1,
+            subscription_quantity=0,
+            total_quantity=1,
+            unit_price=Decimal("1.00"),
+        )
+    )
+    await db.commit()
 
 
 # --- Valid transitions -------------------------------------------------------
@@ -63,6 +85,30 @@ async def test_stepping_back_clears_the_undone_timestamp(db):
     reverted = await cycle_service.transition(db, cycle, CycleStatus.aggregated)
     assert reverted.status is CycleStatus.aggregated
     assert reverted.approved_at is None
+
+
+async def test_stepping_back_below_aggregated_clears_the_snapshot(db):
+    # The frozen weekly_order_lines only reflect demand at aggregation time.
+    # Reopening the cycle (aggregated -> locked) must discard them, or the
+    # shopping list reports stale totals against a live per-customer breakdown.
+    cycle = await make_cycle(db, status=CycleStatus.aggregated)
+    product = await make_product(db)
+    await _add_snapshot_line(db, cycle, product)
+    assert await _snapshot_line_count(db, cycle.id) == 1
+
+    await cycle_service.transition(db, cycle, CycleStatus.locked)
+    assert await _snapshot_line_count(db, cycle.id) == 0
+
+
+async def test_reject_to_aggregated_keeps_the_snapshot(db):
+    # Rejecting approved -> aggregated stays at the aggregated level, so the
+    # snapshot is still valid and must be kept.
+    cycle = await make_cycle(db, status=CycleStatus.approved)
+    product = await make_product(db)
+    await _add_snapshot_line(db, cycle, product)
+
+    await cycle_service.transition(db, cycle, CycleStatus.aggregated)
+    assert await _snapshot_line_count(db, cycle.id) == 1
 
 
 # --- Invalid transitions -----------------------------------------------------

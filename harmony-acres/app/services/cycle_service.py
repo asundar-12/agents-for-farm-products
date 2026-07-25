@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -174,6 +174,15 @@ async def transition(db: AsyncSession, cycle: WeeklyCycle, target: CycleStatus) 
     for state, field in _STATUS_TIMESTAMP.items():
         if _rank(state) > _rank(target):
             setattr(cycle, field, None)
+
+    # Stepping back below 'aggregated' invalidates the frozen snapshot: the
+    # weekly_order_lines were a point-in-time freeze of demand, but the cycle is
+    # open to changes again, so live demand is now authoritative. Leaving the
+    # stale lines makes the shopping list report frozen totals against a live
+    # per-customer breakdown that no longer matches. (Forward moves to open or
+    # locked, before any aggregation, have no lines to clear.)
+    if _rank(target) < _rank(CycleStatus.aggregated):
+        await db.execute(delete(WeeklyOrderLine).where(WeeklyOrderLine.cycle_id == cycle.id))
 
     await db.commit()
     return cycle
