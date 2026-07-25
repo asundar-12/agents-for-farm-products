@@ -16,6 +16,7 @@
 // - On failure we drop the override, reverting that product to the server's
 //   last-known baseline, and surface a toast.
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,6 +28,8 @@ const DEBOUNCE_MS = 500;
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function useOrderDraft(draft: Order | undefined) {
+  const queryClient = useQueryClient();
+
   // Only products the user changed this session. Everything else falls back to
   // the draft baseline below.
   const [overrides, setOverrides] = useState<Record<string, number>>({});
@@ -53,6 +56,13 @@ export function useOrderDraft(draft: Order | undefined) {
       setSaveState("saving");
       api
         .setItem(productId, quantity)
+        .then((updated) => {
+          // Fold the server's fresh draft back into the shared cache so every
+          // page (notably /order/review) reads this edit instead of the stale
+          // draft it first loaded. Overrides still layer on top, so an edit
+          // made while this request was in flight isn't clobbered.
+          queryClient.setQueryData(["draft"], updated);
+        })
         .catch((err) => {
           // Revert this product to the server's last-known baseline.
           setOverrides((prev) => {
@@ -72,7 +82,7 @@ export function useOrderDraft(draft: Order | undefined) {
           }
         });
     },
-    [],
+    [queryClient],
   );
 
   const setQuantity = useCallback(

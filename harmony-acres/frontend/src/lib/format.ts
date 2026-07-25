@@ -9,7 +9,10 @@ export function money(value: string | number): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  // A bare "YYYY-MM-DD" is otherwise parsed as UTC midnight, which renders as
+  // the day before in western timezones. Anchor it to local time instead.
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso;
+  return new Date(value).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
