@@ -64,8 +64,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  if (res.status === 401) {
-    // Token missing/expired. Clear it so guards send the user back to /login.
+  // A 401 on an authenticated request means the token we sent was rejected —
+  // expired or invalid — so clear it and send the user back to sign in. But
+  // login/register (auth: false) also 401 on bad credentials; those must fall
+  // through to the real backend message ("Incorrect email or password") rather
+  // than be mislabeled as an expired session.
+  if (res.status === 401 && auth) {
     setToken(null);
     throw new ApiError(401, "Your session has expired. Please sign in again.");
   }
