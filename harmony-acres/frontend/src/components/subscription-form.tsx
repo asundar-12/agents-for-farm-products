@@ -10,7 +10,6 @@ import { useMemo, useState } from "react";
 
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { formatDateOnly, money, upcomingWednesdays } from "@/lib/format";
@@ -23,7 +22,6 @@ const FREQUENCIES: { value: SubscriptionFrequency; label: string }[] = [
 ];
 
 export interface SubscriptionFormValues {
-  pickup_location: string;
   frequency: SubscriptionFrequency;
   next_delivery_date: string;
   items: Record<string, number>; // product_id -> quantity
@@ -49,7 +47,6 @@ export function SubscriptionForm({ initial, submitLabel, submitting, onSubmit }:
     return base;
   }, [initial?.next_delivery_date]);
 
-  const [pickup, setPickup] = useState(initial?.pickup_location ?? "Farm stand");
   const [frequency, setFrequency] = useState<SubscriptionFrequency>(
     initial?.frequency ?? "weekly",
   );
@@ -88,7 +85,6 @@ export function SubscriptionForm({ initial, submitLabel, submitting, onSubmit }:
     }
     setError(null);
     onSubmit({
-      pickup_location: pickup,
       frequency,
       next_delivery_date: date,
       items: chosen.map(([product_id, quantity]) => ({ product_id, quantity })),
@@ -97,11 +93,6 @@ export function SubscriptionForm({ initial, submitLabel, submitting, onSubmit }:
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="pickup">Pickup location</Label>
-        <Input id="pickup" value={pickup} onChange={(e) => setPickup(e.target.value)} required />
-      </div>
-
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="frequency">How often</Label>

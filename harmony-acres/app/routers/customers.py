@@ -7,8 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.security import TokenData, create_access_token, get_current_user
 from app.schemas.customer import (
-    AddressCreate,
-    AddressRead,
     Token,
     UserLogin,
     UserRead,
@@ -50,22 +48,3 @@ async def update_me(
 ) -> UserRead:
     user = await customer_service.update_user(db, uuid.UUID(current_user.user_id), data.full_name)
     return UserRead.model_validate(user)
-
-
-@router.get("/customers/me/addresses", response_model=list[AddressRead])
-async def list_my_addresses(
-    current_user: Annotated[TokenData, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[AddressRead]:
-    addresses = await customer_service.list_addresses(db, uuid.UUID(current_user.user_id))
-    return [AddressRead.model_validate(a) for a in addresses]
-
-
-@router.post("/customers/me/addresses", response_model=AddressRead, status_code=201)
-async def create_my_address(
-    data: AddressCreate,
-    current_user: Annotated[TokenData, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> AddressRead:
-    address = await customer_service.create_address(db, uuid.UUID(current_user.user_id), data)
-    return AddressRead.model_validate(address)

@@ -119,8 +119,8 @@ async def get_next_delivery(user_id: str) -> dict | str:
         user_id: UUID of the customer making the request.
 
     Returns:
-        A dict with the subscription ID, pickup location, and next delivery
-        date, a message if there's no upcoming delivery, or an error string.
+        A dict with the subscription ID and next delivery date, a message if
+        there's no upcoming delivery, or an error string.
     """
     try:
         uid = _parse_uuid(user_id, "user_id")
@@ -130,7 +130,6 @@ async def get_next_delivery(user_id: str) -> dict | str:
                 return "This customer has no active subscriptions, so there's no upcoming delivery."
             return {
                 "subscription_id": str(subscription.id),
-                "pickup_location": subscription.pickup_location,
                 "next_delivery_date": subscription.next_delivery_date.isoformat(),
                 "frequency": subscription.frequency.value,
             }
@@ -226,7 +225,7 @@ async def get_current_week() -> dict | str:
 
 
 @tool
-async def create_order(user_id: str, pickup_location: str, items: list[dict], note: str | None = None) -> dict | str:
+async def create_order(user_id: str, items: list[dict], note: str | None = None) -> dict | str:
     """Place an order for the current week and submit it immediately.
 
     Validates that every product exists and is being carried, then computes the
@@ -236,7 +235,6 @@ async def create_order(user_id: str, pickup_location: str, items: list[dict], no
 
     Args:
         user_id: UUID of the customer placing the order.
-        pickup_location: Where the order will be picked up.
         items: List of objects, each with "product_id" (UUID string) and
             "quantity" (positive integer). Must contain at least one item.
         note: Optional message for the farm admin about this order.
@@ -248,7 +246,7 @@ async def create_order(user_id: str, pickup_location: str, items: list[dict], no
     try:
         uid = _parse_uuid(user_id, "user_id")
         parsed_items = _parse_items(items, OrderItemCreate)
-        order_data = OrderCreate(pickup_location=pickup_location, items=parsed_items, note=note)
+        order_data = OrderCreate(items=parsed_items, note=note)
         async with AsyncSessionLocal() as db:
             order = await order_service.create_order(db, uid, order_data)
             return OrderRead.model_validate(order).model_dump(mode="json")
@@ -292,7 +290,7 @@ async def cancel_order(user_id: str, order_id: str) -> dict | str:
 
 @tool
 async def create_subscription(
-    user_id: str, pickup_location: str, frequency: str, next_delivery_date: str, items: list[dict]
+    user_id: str, frequency: str, next_delivery_date: str, items: list[dict]
 ) -> dict | str:
     """Enroll a customer in a new recurring delivery subscription.
 
@@ -302,7 +300,6 @@ async def create_subscription(
 
     Args:
         user_id: UUID of the customer enrolling.
-        pickup_location: Where deliveries will be picked up.
         frequency: One of "weekly", "biweekly", "monthly".
         next_delivery_date: The first delivery date, as YYYY-MM-DD (must be a Wednesday).
         items: List of objects, each with "product_id" (UUID string) and
@@ -317,7 +314,6 @@ async def create_subscription(
         parsed_items = _parse_items(items, SubscriptionItemCreate)
         try:
             subscription_data = SubscriptionCreate(
-                pickup_location=pickup_location,
                 frequency=frequency,
                 next_delivery_date=parsed_date,
                 items=parsed_items,
@@ -339,7 +335,6 @@ async def create_subscription(
 async def update_subscription(
     user_id: str,
     subscription_id: str,
-    pickup_location: str | None = None,
     frequency: str | None = None,
     next_delivery_date: str | None = None,
     items: list[dict] | None = None,
@@ -353,7 +348,6 @@ async def update_subscription(
     Args:
         user_id: UUID of the customer who owns the subscription.
         subscription_id: UUID of the subscription to update.
-        pickup_location: New pickup location, or omit to leave unchanged.
         frequency: New frequency, one of "weekly", "biweekly", "monthly", or omit to leave unchanged.
         next_delivery_date: New next delivery date as YYYY-MM-DD (must be a
             Wednesday), or omit to leave unchanged.
@@ -371,7 +365,6 @@ async def update_subscription(
         parsed_items = _parse_items(items, SubscriptionItemCreate) if items is not None else None
         try:
             update_data = SubscriptionUpdate(
-                pickup_location=pickup_location,
                 frequency=frequency,
                 next_delivery_date=parsed_date,
                 items=parsed_items,

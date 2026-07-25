@@ -4,7 +4,6 @@ The order itself only moves draft -> submitted; the Approved/Ordered/Received/
 Closed states your spec lists live on the *weekly cycle* (see
 test_cycle_lifecycle.py). The rules enforced on the order are:
   - you can't submit an empty draft
-  - you can't submit without a pickup location
   - once submitted, you can't submit again or keep editing (no double-count)
   - a product the farm isn't carrying can't be added
   - ordering is locked once the cycle's deadline has passed
@@ -37,11 +36,6 @@ async def test_submit_flow_happy_path(client, db):
 
     assert (await _add_item(client, user, product, 2)).status_code == 200
 
-    patched = await client.patch(
-        "/orders/draft", headers=auth_headers(user), json={"pickup_location": "Farm stand"}
-    )
-    assert patched.status_code == 200
-
     submitted = await client.post("/orders/draft/submit", headers=auth_headers(user))
     assert submitted.status_code == 200
     body = submitted.json()
@@ -60,21 +54,10 @@ async def test_cannot_submit_empty_draft(client, db):
     assert res.status_code == 422
 
 
-async def test_cannot_submit_without_pickup_location(client, db):
-    user = await make_user(db)
-    product = await make_product(db)
-    await _add_item(client, user, product, 1)  # item present, but no pickup set
-    res = await client.post("/orders/draft/submit", headers=auth_headers(user))
-    assert res.status_code == 422
-
-
 async def test_cannot_submit_twice(client, db):
     user = await make_user(db)
     product = await make_product(db)
     await _add_item(client, user, product, 1)
-    await client.patch(
-        "/orders/draft", headers=auth_headers(user), json={"pickup_location": "Farm stand"}
-    )
     assert (await client.post("/orders/draft/submit", headers=auth_headers(user))).status_code == 200
 
     # Second submit must be refused — otherwise the customer double-counts.
@@ -86,9 +69,6 @@ async def test_editing_is_blocked_after_submit(client, db):
     user = await make_user(db)
     product = await make_product(db)
     await _add_item(client, user, product, 1)
-    await client.patch(
-        "/orders/draft", headers=auth_headers(user), json={"pickup_location": "Farm stand"}
-    )
     await client.post("/orders/draft/submit", headers=auth_headers(user))
 
     # Trying to change quantities after submitting is rejected.

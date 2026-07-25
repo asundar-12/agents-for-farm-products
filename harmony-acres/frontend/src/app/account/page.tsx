@@ -1,10 +1,9 @@
 "use client";
 
 // Account screen: edit your display name, see your email (read-only — it's the
-// login), review saved pickup addresses, and sign out. Admins also get a link
-// into the farm dashboard.
+// login), and sign out. Admins also get a link into the farm dashboard.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LogOut, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -29,12 +28,6 @@ export default function AccountPage() {
   useEffect(() => {
     if (user) setName(user.full_name);
   }, [user]);
-
-  const addresses = useQuery({
-    queryKey: ["addresses"],
-    queryFn: api.addresses,
-    enabled: !!user,
-  });
 
   const save = useMutation({
     mutationFn: (full_name: string) => api.updateMe(full_name),
@@ -79,34 +72,6 @@ export default function AccountPage() {
             >
               {save.isPending ? "Saving…" : "Save changes"}
             </Button>
-          </section>
-
-          {/* Addresses */}
-          <section className="space-y-3">
-            <h2 className="font-medium">Pickup addresses</h2>
-            {addresses.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : (addresses.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No saved addresses.</p>
-            ) : (
-              <ul className="divide-y rounded-xl border bg-card">
-                {addresses.data!.map((a) => (
-                  <li key={a.id} className="flex items-start justify-between gap-3 p-4">
-                    <div>
-                      <p className="font-medium">{a.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {a.street}, {a.city}, {a.state} {a.zip}
-                      </p>
-                    </div>
-                    {a.is_default && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        Default
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
 
           {/* Admin shortcut */}

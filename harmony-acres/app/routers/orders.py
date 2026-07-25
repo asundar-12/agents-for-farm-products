@@ -50,7 +50,7 @@ async def update_draft_details(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> OrderRead:
     order = await order_service.set_draft_details(
-        db, uuid.UUID(current_user.user_id), pickup_location=data.pickup_location, note=data.note
+        db, uuid.UUID(current_user.user_id), note=data.note
     )
     return OrderRead.model_validate(order)
 

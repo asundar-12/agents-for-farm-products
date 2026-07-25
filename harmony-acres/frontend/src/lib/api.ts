@@ -3,7 +3,6 @@
 // backend's `detail` message so the UI can show something human.
 
 import type {
-  Address,
   AdminCustomer,
   AdminDashboard,
   CycleSummary,
@@ -112,7 +111,7 @@ export const api = {
       method: "PUT",
       body: { product_id, quantity },
     }),
-  setDraftDetails: (data: { pickup_location?: string; note?: string }) =>
+  setDraftDetails: (data: { note?: string }) =>
     request<Order>("/orders/draft", { method: "PATCH", body: data }),
   submitDraft: () => request<Order>("/orders/draft/submit", { method: "POST" }),
 
@@ -137,7 +136,6 @@ export const api = {
   // --- account ---
   updateMe: (full_name: string) =>
     request<User>("/customers/me", { method: "PATCH", body: { full_name } }),
-  addresses: () => request<Address[]>("/customers/me/addresses"),
 
   // --- admin ---
   adminDashboard: () => request<AdminDashboard>("/admin/dashboard"),

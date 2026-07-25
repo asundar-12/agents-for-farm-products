@@ -4,7 +4,7 @@ Base.metadata — otherwise tables defined in modules nobody imported yet would
 silently be missing from the migration.
 """
 
-from app.models.customer import Address, User  # noqa: F401
+from app.models.customer import User  # noqa: F401
 from app.models.inventory import Delivery, DeliveryPickup, Inventory  # noqa: F401
 from app.models.order import Order, OrderItem  # noqa: F401
 from app.models.product import Product  # noqa: F401

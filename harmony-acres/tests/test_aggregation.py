@@ -82,7 +82,7 @@ async def test_customer_breakdown_lists_each_participant(db):
 
 def _sub(status, next_date, freq=SubscriptionFrequency.weekly):
     return Subscription(
-        status=status, next_delivery_date=next_date, frequency=freq, pickup_location="x", user_id=None
+        status=status, next_delivery_date=next_date, frequency=freq, user_id=None
     )
 
 

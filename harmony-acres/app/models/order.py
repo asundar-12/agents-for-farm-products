@@ -69,7 +69,6 @@ class Order(Base):
     weekly_cycle_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("weekly_cycles.id"), nullable=True, index=True
     )
-    pickup_location: Mapped[str] = mapped_column(String, nullable=False)
     order_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus, name="order_status"), nullable=False, default=OrderStatus.draft
