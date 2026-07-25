@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { AuthProvider } from "@/lib/auth";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 import { Toaster } from "@/components/ui/sonner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
+      <ServiceWorkerRegister />
       <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );
