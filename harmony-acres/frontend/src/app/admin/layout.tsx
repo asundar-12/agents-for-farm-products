@@ -5,7 +5,14 @@
 // a fixed sidebar on the left, content on the right; on small screens the nav
 // collapses to a scrollable strip along the top.
 
-import { CalendarDays, LayoutDashboard, ListChecks, MessageCircle, Users } from "lucide-react";
+import {
+  CalendarDays,
+  LayoutDashboard,
+  ListChecks,
+  MessageCircle,
+  ShoppingBasket,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,6 +26,7 @@ const NAV = [
   { href: "/admin/weeks", label: "Weeks", icon: CalendarDays },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/assistant", label: "Assistant", icon: MessageCircle },
+  { href: "/order", label: "Catalog", icon: ShoppingBasket },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

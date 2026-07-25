@@ -10,7 +10,7 @@
 // and controls hidden via `print:hidden`) and copy-as-plain-text.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Copy, Printer, TrendingUp } from "lucide-react";
+import { ChevronRight, Copy, Printer, Send, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -45,6 +45,15 @@ export default function AdminShoppingListPage() {
   // like aisles of a shop rather than one flat list.
   const groups = useMemo(() => groupByCategory(data?.lines ?? []), [data]);
 
+  function sendToAccounting() {
+    // Not wired up yet — this will POST the week's buy list once the accounting
+    // integration exists. Kept visible so the flow is discoverable in the
+    // meantime.
+    toast("Send to accounting is coming soon", {
+      description: "This will connect once the accounting interface is added.",
+    });
+  }
+
   function copyPlainText() {
     if (!data) return;
     navigator.clipboard.writeText(toPlainText(data)).then(
@@ -71,6 +80,9 @@ export default function AdminShoppingListPage() {
           </Button>
           <Button variant="outline" onClick={() => window.print()} disabled={!data}>
             <Printer /> Print
+          </Button>
+          <Button onClick={sendToAccounting} disabled={!data}>
+            <Send /> Send to accounting
           </Button>
           {pill && (
             <span className={cn("rounded-full px-3 py-1 text-sm font-medium", pill.className)}>
@@ -142,7 +154,9 @@ function LineRow({
   editable: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  // Expanded by default so the customers behind each product's total are visible
+  // at a glance; still collapsible per line.
+  const [expanded, setExpanded] = useState(true);
   // Draft of the override input, seeded from whatever the server currently has.
   const [draft, setDraft] = useState<string>(
     line.adjusted_quantity == null ? "" : String(line.adjusted_quantity),

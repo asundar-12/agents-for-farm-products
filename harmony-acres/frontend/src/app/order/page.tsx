@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { AdminMenu } from "@/components/admin-menu";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,6 +79,7 @@ export default function OrderPage() {
           </div>
           <div className="flex items-center gap-3">
             <SaveIndicator state={saveState} />
+            {user.role === "admin" && <AdminMenu />}
             <Button variant="ghost" size="sm" onClick={logout}>
               Sign out
             </Button>
@@ -145,15 +147,28 @@ export default function OrderPage() {
             </p>
             <p className="text-lg font-semibold tabular-nums">{money(totalPrice)}</p>
           </div>
-          {totalItems === 0 || !isOpen ? (
-            <Button size="lg" disabled>
-              Review order
-            </Button>
-          ) : (
-            <Link href="/order/review" className={cn(buttonVariants({ size: "lg" }))}>
-              Review order
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Admins can still place their own order (Review order → submit,
+                which joins the week's total) and also jump to the week's
+                consolidated buy list (totals per item, with customers). */}
+            {user.role === "admin" && (
+              <Link
+                href="/admin/shopping-list"
+                className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
+              >
+                Consolidated list
+              </Link>
+            )}
+            {totalItems === 0 || !isOpen ? (
+              <Button size="lg" disabled>
+                Review order
+              </Button>
+            ) : (
+              <Link href="/order/review" className={cn(buttonVariants({ size: "lg" }))}>
+                Review order
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </main>
