@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
-from app.models.customer import Address, User
-from app.schemas.customer import AddressCreate, UserRegister
+from app.models.customer import User
+from app.schemas.customer import UserRegister
 
 
 async def register_user(db: AsyncSession, data: UserRegister) -> User:
@@ -46,16 +46,3 @@ async def update_user(db: AsyncSession, user_id: uuid.UUID, full_name: str | Non
     await db.commit()
     await db.refresh(user)
     return user
-
-
-async def list_addresses(db: AsyncSession, user_id: uuid.UUID) -> list[Address]:
-    result = await db.scalars(select(Address).where(Address.user_id == user_id))
-    return list(result.all())
-
-
-async def create_address(db: AsyncSession, user_id: uuid.UUID, data: AddressCreate) -> Address:
-    address = Address(user_id=user_id, **data.model_dump())
-    db.add(address)
-    await db.commit()
-    await db.refresh(address)
-    return address

@@ -37,7 +37,6 @@ export default function EditSubscriptionPage() {
     const items: Record<string, number> = {};
     for (const i of sub.data.items) items[i.product_id] = i.quantity;
     return {
-      pickup_location: sub.data.pickup_location,
       frequency: sub.data.frequency,
       next_delivery_date: sub.data.next_delivery_date,
       items,

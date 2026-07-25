@@ -27,7 +27,6 @@ class OrderCreate(BaseModel):
     arbitrary date would let them write an order into a week that isn't open.
     """
 
-    pickup_location: str
     items: list[OrderItemCreate]
     note: str | None = None
 
@@ -54,7 +53,6 @@ class SetItemQuantity(BaseModel):
 
 
 class DraftDetailsUpdate(BaseModel):
-    pickup_location: str | None = None
     note: str | None = None
 
 
@@ -76,7 +74,6 @@ class OrderRead(BaseModel):
     user_id: uuid.UUID
     subscription_id: uuid.UUID | None
     weekly_cycle_id: uuid.UUID | None
-    pickup_location: str
     order_date: date
     status: OrderStatus
     note: str | None

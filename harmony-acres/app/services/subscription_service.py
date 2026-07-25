@@ -84,7 +84,6 @@ async def create_subscription(db: AsyncSession, user_id: uuid.UUID, data: Subscr
 
     subscription = Subscription(
         user_id=user_id,
-        pickup_location=data.pickup_location,
         frequency=data.frequency,
         next_delivery_date=data.next_delivery_date,
         status=SubscriptionStatus.active,
@@ -157,8 +156,6 @@ async def update_subscription(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot modify a cancelled subscription"
         )
 
-    if data.pickup_location is not None:
-        subscription.pickup_location = data.pickup_location
     if data.next_delivery_date is not None:
         assert_wednesday(data.next_delivery_date, "next_delivery_date")
         subscription.next_delivery_date = data.next_delivery_date

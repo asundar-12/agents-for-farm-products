@@ -28,7 +28,6 @@ class SubscriptionItemRead(BaseModel):
 
 
 class SubscriptionCreate(BaseModel):
-    pickup_location: str
     frequency: SubscriptionFrequency
     next_delivery_date: date
     items: list[SubscriptionItemCreate]
@@ -42,7 +41,6 @@ class SubscriptionCreate(BaseModel):
 
 
 class SubscriptionUpdate(BaseModel):
-    pickup_location: str | None = None
     frequency: SubscriptionFrequency | None = None
     next_delivery_date: date | None = None
     items: list[SubscriptionItemCreate] | None = None
@@ -57,7 +55,6 @@ class SubscriptionRead(BaseModel):
 
     id: uuid.UUID
     user_id: uuid.UUID
-    pickup_location: str
     frequency: SubscriptionFrequency
     next_delivery_date: date
     status: SubscriptionStatus

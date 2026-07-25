@@ -101,7 +101,6 @@ async def get_or_create_draft(db: AsyncSession, user_id: uuid.UUID, cycle: Weekl
     draft = Order(
         user_id=user_id,
         weekly_cycle_id=cycle.id,
-        pickup_location="",
         order_date=cycle.delivery_date,
         status=OrderStatus.draft,
         total_amount=Decimal("0"),
@@ -182,15 +181,12 @@ async def set_item_quantity(
 async def set_draft_details(
     db: AsyncSession,
     user_id: uuid.UUID,
-    pickup_location: str | None = None,
     note: str | None = None,
 ) -> Order:
     cycle = await cycle_service.get_or_create_current_cycle(db)
     cycle_service.assert_open(cycle)
     draft = await get_or_create_draft(db, user_id, cycle)
 
-    if pickup_location is not None:
-        draft.pickup_location = pickup_location
     if note is not None:
         draft.note = note
 
@@ -213,11 +209,6 @@ async def submit_order(db: AsyncSession, user_id: uuid.UUID) -> Order:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Add at least one item before submitting your order",
-        )
-    if not draft.pickup_location:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Choose a pickup location before submitting your order",
         )
 
     _recalculate_total(draft)
@@ -303,7 +294,6 @@ async def create_order(db: AsyncSession, user_id: uuid.UUID, data: OrderCreate) 
     order = Order(
         user_id=user_id,
         weekly_cycle_id=cycle.id,
-        pickup_location=data.pickup_location,
         order_date=cycle.delivery_date,
         status=OrderStatus.submitted,
         submitted_at=datetime.now(timezone.utc),

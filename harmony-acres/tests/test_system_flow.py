@@ -37,7 +37,6 @@ async def test_full_week_lifecycle_end_to_end(client, db):
         headers=cust_headers,
         json={"product_id": str(product.id), "quantity": 4},
     )
-    await client.patch("/orders/draft", headers=cust_headers, json={"pickup_location": "Farm stand"})
     submit = await client.post("/orders/draft/submit", headers=cust_headers)
     assert submit.status_code == 200 and submit.json()["status"] == "submitted"
 

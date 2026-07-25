@@ -72,7 +72,6 @@ export interface Order {
   user_id: string;
   subscription_id: string | null;
   weekly_cycle_id: string | null;
-  pickup_location: string;
   order_date: string;
   status: OrderStatus;
   note: string | null;
@@ -98,7 +97,6 @@ export interface SubscriptionItem {
 export interface Subscription {
   id: string;
   user_id: string;
-  pickup_location: string;
   frequency: SubscriptionFrequency;
   next_delivery_date: string; // date-only, "YYYY-MM-DD"
   status: SubscriptionStatus;
@@ -110,24 +108,9 @@ export interface Subscription {
 
 // The shape we POST/PATCH when creating or editing a subscription.
 export interface SubscriptionInput {
-  pickup_location: string;
   frequency: SubscriptionFrequency;
   next_delivery_date: string;
   items: { product_id: string; quantity: number }[];
-}
-
-// --- Account / addresses ---
-
-export interface Address {
-  id: string;
-  user_id: string;
-  label: string;
-  street: string;
-  city: string;
-  state: string;
-  zip: string;
-  is_default: boolean;
-  created_at: string;
 }
 
 // --- Admin / weekly aggregation ---

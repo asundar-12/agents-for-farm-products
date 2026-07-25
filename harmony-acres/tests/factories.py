@@ -101,7 +101,6 @@ async def make_submitted_order(
     order = Order(
         user_id=user.id,
         weekly_cycle_id=cycle.id,
-        pickup_location="Farm stand",
         order_date=cycle.delivery_date,
         status=OrderStatus.submitted,
         submitted_at=datetime.now(timezone.utc),
@@ -128,7 +127,6 @@ async def make_subscription(
 ) -> Subscription:
     sub = Subscription(
         user_id=user.id,
-        pickup_location="Farm stand",
         frequency=frequency,
         next_delivery_date=next_delivery_date,
         status=status,

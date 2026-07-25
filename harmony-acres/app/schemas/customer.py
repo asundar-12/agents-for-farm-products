@@ -39,24 +39,3 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
 
 
-class AddressCreate(BaseModel):
-    label: str
-    street: str
-    city: str
-    state: str
-    zip: str
-    is_default: bool = False
-
-
-class AddressRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    user_id: uuid.UUID
-    label: str
-    street: str
-    city: str
-    state: str
-    zip: str
-    is_default: bool
-    created_at: datetime
