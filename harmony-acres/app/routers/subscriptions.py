@@ -27,6 +27,18 @@ async def create_subscription(
     return SubscriptionRead.model_validate(subscription)
 
 
+@router.get("", response_model=list[SubscriptionRead])
+async def list_subscriptions(
+    current_user: Annotated[TokenData, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[SubscriptionRead]:
+    """This customer's subscriptions, soonest delivery first."""
+    subscriptions = await subscription_service.list_subscriptions_for_user(
+        db, uuid.UUID(current_user.user_id)
+    )
+    return [SubscriptionRead.model_validate(s) for s in subscriptions]
+
+
 @router.get("/{subscription_id}", response_model=SubscriptionRead)
 async def get_subscription(
     subscription_id: uuid.UUID,
