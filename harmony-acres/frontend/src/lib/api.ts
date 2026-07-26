@@ -32,6 +32,21 @@ export function setToken(token: string | null) {
   else window.localStorage.removeItem(TOKEN_KEY);
 }
 
+// In Cognito mode the bearer token is a short-lived ID token that Amplify
+// refreshes for us, so a value cached in localStorage would go stale. The auth
+// layer installs a provider here that returns a *fresh* token per request. When
+// no provider is set (legacy mode) we fall back to the stored token.
+type TokenProvider = () => Promise<string | null>;
+let tokenProvider: TokenProvider | null = null;
+
+export function setTokenProvider(provider: TokenProvider | null) {
+  tokenProvider = provider;
+}
+
+async function currentToken(): Promise<string | null> {
+  return tokenProvider ? tokenProvider() : getToken();
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -53,7 +68,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
 
   if (auth) {
-    const token = getToken();
+    const token = await currentToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
@@ -174,7 +189,7 @@ export async function streamChat(
   sessionId: string | null,
   handlers: ChatStreamHandlers,
 ): Promise<void> {
-  const token = getToken();
+  const token = await currentToken();
   const res = await fetch(`${API_BASE}/agent/chat/stream`, {
     method: "POST",
     headers: {

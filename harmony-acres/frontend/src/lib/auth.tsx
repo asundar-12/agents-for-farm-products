@@ -8,8 +8,20 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { api, getToken, setToken } from "./api";
+import { api, getToken, setToken, setTokenProvider } from "./api";
+import {
+  cognitoLogin,
+  cognitoLogout,
+  cognitoRegister,
+  getIdToken,
+  isCognito,
+} from "./cognito";
 import type { User } from "./types";
+
+// In Cognito mode, api.ts should pull a fresh ID token per request rather than
+// read the stale localStorage value. Installed at module load so it's in place
+// before any request fires. Legacy mode leaves the provider unset.
+if (isCognito) setTokenProvider(getIdToken);
 
 interface AuthContextValue {
   user: User | null;
@@ -23,24 +35,32 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  // Start loading only if there's a token worth validating; otherwise we're
-  // immediately "known to be logged out" and guards can act without a flash.
-  const [loading, setLoading] = useState<boolean>(() => !!getToken());
+  // In Cognito mode there's no localStorage token to gate on — Amplify holds
+  // the session — so we always start in `loading` and let the mount effect
+  // resolve it. In legacy mode we only load if there's a token worth validating.
+  const [loading, setLoading] = useState<boolean>(() => (isCognito ? true : !!getToken()));
 
   useEffect(() => {
-    // No token → initial `loading` is already false (see useState above), so
-    // there's nothing to do and nothing to set synchronously here.
-    if (!getToken()) return;
+    // Both modes verify the session by calling /customers/me: legacy sends the
+    // stored bearer token, Cognito sends a fresh ID token via the token
+    // provider. Either way, a 200 means we're signed in.
+    if (!isCognito && !getToken()) return;
     api
       .me()
       .then(setUser)
-      .catch(() => setToken(null))
+      .catch(() => {
+        if (!isCognito) setToken(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { access_token } = await api.login({ email, password });
-    setToken(access_token);
+    if (isCognito) {
+      await cognitoLogin(email, password);
+    } else {
+      const { access_token } = await api.login({ email, password });
+      setToken(access_token);
+    }
     const me = await api.me();
     setUser(me);
     return me;
@@ -48,15 +68,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, full_name: string) => {
-      await api.register({ email, password, full_name });
-      // Registration doesn't return a token; log in to get one.
+      if (isCognito) {
+        await cognitoRegister(email, password, full_name);
+      } else {
+        await api.register({ email, password, full_name });
+      }
+      // Neither path returns a usable session directly; log in to establish one.
       await login(email, password);
     },
     [login],
   );
 
   const logout = useCallback(() => {
-    setToken(null);
+    if (isCognito) {
+      void cognitoLogout();
+    } else {
+      setToken(null);
+    }
     setUser(null);
   }, []);
 

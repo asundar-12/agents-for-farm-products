@@ -1,0 +1,32 @@
+# AWS Amplify Hosting build spec.
+#
+# The Next.js frontend lives in a subfolder of this repo, so `appRoot` points
+# Amplify at it; all the build phases below run from inside that directory.
+# Amplify auto-detects the Next.js (SSR) framework from package.json and
+# provisions the server compute — we only describe how to build.
+#
+# NOTE: NEXT_PUBLIC_API_BASE must be set in the Amplify console (App settings →
+# Environment variables) to the deployed backend URL. It is a NEXT_PUBLIC_ var,
+# so it is inlined at *build* time — changing it requires a redeploy, not just
+# a restart.
+version: 1
+applications:
+  - appRoot: harmony-acres/frontend
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            # `npm ci` installs exactly what's in package-lock.json — reproducible
+            # and faster than `npm install` in CI.
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        # For a Next.js SSR app, Amplify expects the .next output directory.
+        baseDirectory: .next
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*

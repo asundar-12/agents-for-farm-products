@@ -1,16 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import get_settings
 from app.routers import admin, agent, customers, cycles, orders, products, subscriptions
+
+settings = get_settings()
 
 app = FastAPI(title="Farm Product Agent API")
 
-# Allows the local static chat UI (served from a different origin/port, e.g.
-# a plain `python -m http.server` or file://) to call this API directly from
-# the browser. Tighten allow_origins to the real frontend origin before prod.
+# Only the configured frontend origins may call this API from a browser. Set
+# cors_allow_origins to the Amplify domain in production (see config.py).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
