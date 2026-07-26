@@ -9,8 +9,30 @@ class Settings(BaseSettings):
     # Database (Neon Postgres, pooled/transaction-mode connection string on port 6543)
     database_url: str
 
-    # JWT auth
-    jwt_secret: str
+    # CORS. Comma-separated list of allowed browser origins. Locally this covers
+    # the Next.js dev server and the static chat UI; in production set it to the
+    # Amplify domain (e.g. "https://main.d123.amplifyapp.com,https://harmonyacres.com").
+    cors_allow_origins: str = "http://localhost:3000,http://localhost:8000"
+
+    # Which identity system is authoritative.
+    #   "legacy"  -> the old bcrypt password + self-signed JWT flow (default for
+    #                local dev; /auth/register and /auth/login work as before).
+    #   "cognito" -> tokens are Cognito's; the backend only verifies them and the
+    #                legacy /auth endpoints are disabled (set this in App Runner).
+    auth_mode: str = "legacy"
+
+    # --- Cognito ---
+    # The User Pool is the identity provider now. The backend no longer signs
+    # tokens; it *verifies* the JWTs Cognito issues, against the pool's public
+    # JWKS. These are safe to expose (they're in every token's issuer URL).
+    cognito_region: str = "us-east-1"
+    cognito_user_pool_id: str = ""
+    # The App Client the frontend logs in through. Access tokens carry this as
+    # `client_id`; ID tokens carry it as `aud`. We verify against it.
+    cognito_app_client_id: str = ""
+
+    # --- Legacy JWT auth (kept only for the migration Lambda's DB verify path) ---
+    jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24
 

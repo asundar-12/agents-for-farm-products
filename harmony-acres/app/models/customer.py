@@ -22,7 +22,13 @@ class User(Base):
     # mapped_column(...) on the right is the actual DB column definition.
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    # Nullable now: users created via Cognito have no password stored here —
+    # Cognito owns the credential. Only legacy/self-registered users have a hash.
+    hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Cognito's stable user id (the token `sub`). Populated on first Cognito
+    # login (backfilled from email for migrated users). Lets us resolve a token
+    # to the local row even if the email later changes.
+    cognito_sub: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False, default=UserRole.customer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

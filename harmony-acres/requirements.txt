@@ -7,6 +7,7 @@ pydantic>=2.9
 pydantic-settings>=2.5
 email-validator>=2.2
 PyJWT>=2.9
+cryptography>=43.0  # required by PyJWT to verify Cognito's RS256 tokens
 bcrypt>=4.2
 strands-agents>=0.1
 boto3>=1.35
