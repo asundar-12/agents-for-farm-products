@@ -10,9 +10,11 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 import { api, getToken, setToken, setTokenProvider } from "./api";
 import {
+  cognitoConfirmSignUp,
   cognitoLogin,
   cognitoLogout,
   cognitoRegister,
+  cognitoResendCode,
   getIdToken,
   isCognito,
 } from "./cognito";
@@ -27,7 +29,13 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string, full_name: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    full_name: string,
+  ) => Promise<{ needsConfirmation: boolean }>;
+  confirmRegistration: (email: string, code: string) => Promise<void>;
+  resendConfirmationCode: (email: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -69,15 +77,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(
     async (email: string, password: string, full_name: string) => {
       if (isCognito) {
-        await cognitoRegister(email, password, full_name);
+        const { needsConfirmation } = await cognitoRegister(email, password, full_name);
+        // Signing in now would just throw UserNotConfirmedException; let the
+        // caller show a confirmation-code step instead.
+        if (needsConfirmation) return { needsConfirmation: true };
       } else {
         await api.register({ email, password, full_name });
       }
-      // Neither path returns a usable session directly; log in to establish one.
+      // Neither remaining path returns a usable session directly; log in to
+      // establish one.
       await login(email, password);
+      return { needsConfirmation: false };
     },
     [login],
   );
+
+  const confirmRegistration = useCallback(async (email: string, code: string) => {
+    await cognitoConfirmSignUp(email, code);
+  }, []);
+
+  const resendConfirmationCode = useCallback(async (email: string) => {
+    await cognitoResendCode(email);
+  }, []);
 
   const logout = useCallback(() => {
     if (isCognito) {
@@ -89,7 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, confirmRegistration, resendConfirmationCode, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

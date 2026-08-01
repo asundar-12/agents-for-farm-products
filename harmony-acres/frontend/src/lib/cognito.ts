@@ -6,7 +6,9 @@
 
 import { Amplify } from "aws-amplify";
 import {
+  confirmSignUp,
   fetchAuthSession,
+  resendSignUpCode,
   signIn,
   signOut,
   signUp,
@@ -55,16 +57,23 @@ export async function cognitoRegister(
   email: string,
   password: string,
   fullName: string,
-): Promise<void> {
-  await signUp({
+): Promise<{ needsConfirmation: boolean }> {
+  const { nextStep } = await signUp({
     username: email,
     password,
     options: { userAttributes: { email, name: fullName } },
   });
-  // NOTE: if the pool requires email verification, the user is now in an
-  // UNCONFIRMED state and a confirmation-code step is needed before they can
-  // sign in. Wiring that screen is a follow-up; for a pool configured to
-  // auto-confirm (pre-signup Lambda) the subsequent login just works.
+  // For a pool configured to auto-confirm (pre-signup Lambda), nextStep is
+  // already DONE and the caller can log in immediately.
+  return { needsConfirmation: nextStep.signUpStep === "CONFIRM_SIGN_UP" };
+}
+
+export async function cognitoConfirmSignUp(email: string, code: string): Promise<void> {
+  await confirmSignUp({ username: email, confirmationCode: code });
+}
+
+export async function cognitoResendCode(email: string): Promise<void> {
+  await resendSignUpCode({ username: email });
 }
 
 export async function cognitoLogout(): Promise<void> {
