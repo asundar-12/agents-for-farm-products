@@ -1,0 +1,46 @@
+# Render Blueprint for the Harmony Acres FastAPI API (replaces Lightsail).
+# Dashboard: New → Blueprint → this repo. Secrets (sync: false) are entered once
+# in the Render UI and are not stored in git.
+#
+# Free web services sleep when idle; the first request after a pause is slow.
+# Render sets $PORT — do not hardcode 8000.
+
+services:
+  - type: web
+    name: harmony-acres-api
+    runtime: python
+    plan: free
+    region: ohio
+    rootDir: harmony-acres
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.9"
+      - key: AUTH_MODE
+        value: cognito
+      - key: COGNITO_REGION
+        value: us-east-1
+      - key: COGNITO_USER_POOL_ID
+        value: us-east-1_x0rDyMmrO
+      - key: COGNITO_APP_CLIENT_ID
+        value: 6h8oipq8d2446viev236par37b
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: AGENT_RUNTIME_ARN
+        sync: false
+      - key: AGENT_MEMORY_ID
+        sync: false
+      - key: BEDROCK_MODEL_ID
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
