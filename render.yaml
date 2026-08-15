@@ -10,7 +10,7 @@ services:
     name: harmony-acres-api
     runtime: python
     plan: free
-    region: ohio
+    region: virginia
     rootDir: harmony-acres
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
