@@ -1,6 +1,7 @@
 import json
 import uuid
 from collections.abc import Iterator
+from functools import lru_cache
 from typing import Annotated
 
 import boto3
@@ -13,9 +14,12 @@ from app.schemas.agent import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
-# One client, reused across requests — boto3 clients are safe to share and
-# creating one per-request would add unnecessary overhead.
-_agentcore_client = boto3.client("bedrock-agentcore")
+
+@lru_cache
+def _agentcore_client():
+    # Region must be explicit: boto3 does not always see AWS_REGION at import
+    # time on hosts like Render, and a missing region crashes the whole API.
+    return boto3.client("bedrock-agentcore", region_name=get_settings().aws_region)
 
 
 def _build_payload(current_user: TokenData, message: str, session_id: str) -> bytes:
@@ -46,13 +50,14 @@ def _iter_deltas(payload: bytes, session_id: str) -> Iterator[str]:
     StreamingResponse (directly or after joining), and Starlette drives a sync
     generator on a threadpool, so it never stalls the event loop.
     """
+    client = _agentcore_client()
     try:
-        response = _agentcore_client.invoke_agent_runtime(
+        response = client.invoke_agent_runtime(
             agentRuntimeArn=get_settings().agent_runtime_arn,
             runtimeSessionId=session_id,
             payload=payload,
         )
-    except _agentcore_client.exceptions.ClientError as exc:
+    except client.exceptions.ClientError as exc:
         raise HTTPException(status_code=502, detail="Agent service unavailable") from exc
 
     for raw in response["response"].iter_lines():
