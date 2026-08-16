@@ -25,7 +25,7 @@ services:
       - key: COGNITO_USER_POOL_ID
         value: us-east-1_x0rDyMmrO
       - key: COGNITO_APP_CLIENT_ID
-        value: 6h8oipq8d2446viev236par37b
+        value: 3ou69oqu04i91snssn8n6srfdc
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     # CORS. Comma-separated list of allowed browser origins. Locally this covers
     # the Next.js dev server and the static chat UI; in production set it to the
     # Amplify domain (e.g. "https://main.d123.amplifyapp.com,https://harmonyacres.com").
-    cors_allow_origins: str = "http://localhost:3000,http://localhost:8000"
+    # Include 3001: Next falls over to it when another app already holds 3000.
+    cors_allow_origins: str = (
+        "http://localhost:3000,http://localhost:3001,http://localhost:8000"
+    )
 
     # Which identity system is authoritative.
     #   "legacy"  -> the old bcrypt password + self-signed JWT flow (default for
