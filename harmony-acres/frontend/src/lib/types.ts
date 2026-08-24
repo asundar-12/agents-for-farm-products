@@ -195,6 +195,16 @@ export interface AdminCustomer {
   created_at: string;
 }
 
+export interface AdminSubscriptionsForWeek {
+  cycle: WeeklyCycle;
+  customers: {
+    user_id: string;
+    full_name: string;
+    email: string;
+    subscriptions: Subscription[];
+  }[];
+}
+
 // --- Assistant chat ---
 
 export interface ChatResponse {

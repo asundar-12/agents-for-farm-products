@@ -5,6 +5,7 @@
 import type {
   AdminCustomer,
   AdminDashboard,
+  AdminSubscriptionsForWeek,
   CycleSummary,
   NonSubmitter,
   Order,
@@ -161,6 +162,7 @@ export const api = {
   adminNonSubmitters: (cycleId: string) =>
     request<NonSubmitter[]>(`/admin/cycles/${cycleId}/non-submitters`),
   adminCustomers: () => request<AdminCustomer[]>("/admin/customers"),
+  adminSubscriptions: () => request<AdminSubscriptionsForWeek>("/admin/subscriptions"),
   adminAdjustLine: (cycleId: string, productId: string, quantity: number | null) =>
     request<ShoppingList>(`/admin/cycles/${cycleId}/lines/${productId}`, {
       method: "PATCH",
