@@ -6,10 +6,14 @@ database at each step. The second exercises the assistant endpoint with the
 Bedrock AgentCore call mocked out — we test our plumbing, not AWS.
 """
 
+import uuid
 from unittest.mock import MagicMock, patch
+
+from sqlalchemy import func, select
 
 import app.routers.agent as agent_module
 from app.models.customer import UserRole
+from app.models.order import Order
 from tests.factories import auth_headers, make_user
 
 
@@ -61,6 +65,16 @@ async def test_full_week_lifecycle_end_to_end(client, db):
     closed = await client.post(f"/admin/cycles/{cycle_id}/close", headers=ah)
     assert closed.status_code == 200
     assert closed.json()["status"] == "closed"
+
+    leftover = await db.scalar(
+        select(func.count()).select_from(Order).where(Order.weekly_cycle_id == uuid.UUID(cycle_id))
+    )
+    assert leftover == 0
+
+    dash_after = await client.get("/admin/dashboard", headers=ah)
+    assert dash_after.status_code == 200
+    assert dash_after.json()["cycle"]["id"] != cycle_id
+    assert dash_after.json()["order_count"] == 0
 
 
 async def test_illegal_admin_transition_is_rejected_over_http(client, db):

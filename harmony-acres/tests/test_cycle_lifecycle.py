@@ -8,15 +8,17 @@ Full legal path: open -> locked -> aggregated -> approved -> ordered -> received
 -> closed, plus two legal step-backs (locked->open, aggregated<-approved reject).
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from app.models.order import Order
 from app.models.weekly import CycleStatus, WeeklyOrderLine
 from app.services import cycle_service
-from tests.factories import make_cycle, make_product
+from tests.factories import make_cycle, make_product, make_submitted_order, make_user
 
 
 async def _snapshot_line_count(db, cycle_id) -> int:
@@ -140,3 +142,31 @@ async def test_closed_is_terminal(db):
             continue
         with pytest.raises(HTTPException):
             await cycle_service.transition(db, cycle, target)
+
+
+async def test_closing_a_week_deletes_its_customer_orders_but_keeps_the_snapshot(db):
+    # Closed weeks should not leave submitted orders sitting in the database
+    # for the next dashboard/shopping-list read. The frozen snapshot stays so
+    # the weeks archive can still show what was bought.
+    product = await make_product(db)
+    cycle = await make_cycle(db, status=CycleStatus.received)
+    user = await make_user(db)
+    await make_submitted_order(db, user=user, cycle=cycle, product=product, quantity=3)
+    await _add_snapshot_line(db, cycle, product)
+
+    await cycle_service.transition(db, cycle, CycleStatus.closed)
+
+    remaining = await db.scalar(select(func.count()).select_from(Order).where(Order.weekly_cycle_id == cycle.id))
+    assert remaining == 0
+    assert await _snapshot_line_count(db, cycle.id) == 1
+
+
+async def test_current_cycle_skips_a_closed_week(db):
+    week_start = cycle_service.current_week_start()
+    closed = await make_cycle(db, week_start=week_start, status=CycleStatus.closed)
+
+    current = await cycle_service.get_or_create_current_cycle(db)
+
+    assert current.id != closed.id
+    assert current.week_start == week_start + timedelta(days=7)
+    assert current.status is CycleStatus.open

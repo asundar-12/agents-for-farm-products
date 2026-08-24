@@ -214,7 +214,11 @@ async def mark_received(
 async def close_cycle(
     cycle_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]
 ) -> WeeklyCycleRead:
-    """Archive the week. Terminal — nothing moves after this."""
+    """Archive the week. Terminal — nothing moves after this.
+
+    Also deletes this week's customer orders (not subscriptions) so they
+    don't linger as live demand on the next week's dashboard.
+    """
     cycle = await cycle_service.get_cycle_by_id(db, cycle_id)
     cycle = await cycle_service.transition(db, cycle, CycleStatus.closed)
     return WeeklyCycleRead.model_validate(cycle)

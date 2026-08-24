@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.models.inventory import DeliveryPickup
+from app.models.order import Order, OrderItem
 from app.models.weekly import CycleStatus, WeeklyCycle, WeeklyOrderLine
 
 # A cycle stops accepting customer edits in any of these states.
@@ -56,7 +58,13 @@ def current_week_start(now: datetime | None = None) -> date:
 
 
 async def get_or_create_current_cycle(db: AsyncSession) -> WeeklyCycle:
-    return await get_or_create_cycle_for_week(db, current_week_start())
+    week_start = current_week_start()
+    cycle = await get_or_create_cycle_for_week(db, week_start)
+    # Closing a week archives it. Dashboard and shopping list should follow
+    # the week that's still in flight, not keep showing the closed one.
+    if cycle.status == CycleStatus.closed:
+        return await get_or_create_cycle_for_week(db, week_start + timedelta(days=7))
+    return cycle
 
 
 async def get_or_create_cycle_for_week(db: AsyncSession, week_start: date) -> WeeklyCycle:
@@ -184,6 +192,12 @@ async def transition(db: AsyncSession, cycle: WeeklyCycle, target: CycleStatus) 
     if _rank(target) < _rank(CycleStatus.aggregated):
         await db.execute(delete(WeeklyOrderLine).where(WeeklyOrderLine.cycle_id == cycle.id))
 
+    # Closing the week drops the customer order rows so they can't leak into
+    # the next week's live demand. The weekly_order_lines snapshot stays so
+    # /admin/weeks can still show what was bought.
+    if target is CycleStatus.closed:
+        await _purge_customer_orders(db, cycle.id)
+
     await db.commit()
     return cycle
 
@@ -201,6 +215,19 @@ _STATUS_ORDER = [
 
 def _rank(state: CycleStatus) -> int:
     return _STATUS_ORDER.index(state)
+
+
+async def _purge_customer_orders(db: AsyncSession, cycle_id: uuid.UUID) -> None:
+    """Delete one-off customer orders (and their line items) for a cycle.
+
+    Subscriptions are standing plans and are left alone — they belong to the
+    customer, not to a single week. Pickup rows that point at those orders
+    have to go first or the FK to orders would block the delete.
+    """
+    order_ids = select(Order.id).where(Order.weekly_cycle_id == cycle_id)
+    await db.execute(delete(DeliveryPickup).where(DeliveryPickup.order_id.in_(order_ids)))
+    await db.execute(delete(OrderItem).where(OrderItem.order_id.in_(order_ids)))
+    await db.execute(delete(Order).where(Order.weekly_cycle_id == cycle_id))
 
 
 async def lock_expired_cycles(db: AsyncSession) -> int:

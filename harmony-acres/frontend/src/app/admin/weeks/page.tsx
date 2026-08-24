@@ -54,7 +54,7 @@ const ACTIONS: Record<CycleStatus, Action[]> = {
       label: "Close week",
       action: "close",
       variant: "outline",
-      confirm: "Close this week for good? Nothing can move after this.",
+      confirm: "Close this week for good? Customer orders for this week will be cleared so they don't carry into the next week. Nothing can move after this.",
     },
   ],
   closed: [],
