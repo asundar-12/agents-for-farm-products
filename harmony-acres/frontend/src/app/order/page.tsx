@@ -78,6 +78,7 @@ export default function OrderPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <p className="max-w-[12rem] truncate text-sm font-medium">{user.full_name}</p>
             <SaveIndicator state={saveState} />
             {user.role === "admin" && <AdminMenu />}
             <Button variant="ghost" size="sm" onClick={logout}>

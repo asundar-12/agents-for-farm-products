@@ -31,7 +31,7 @@ const NAV = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { loading, isAdmin } = useRequireAdmin();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const pathname = usePathname();
 
   // Until we know the user is an admin, show nothing but a spinner — the guard
@@ -51,7 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="border-b bg-card md:w-60 md:shrink-0 md:border-b-0 md:border-r print:hidden">
         <div className="flex items-center justify-between px-4 py-4 md:block">
           <div>
-            <p className="font-semibold">Farm Product Agent</p>
+            <p className="font-semibold">{user?.full_name || "Farm Product Agent"}</p>
             <p className="text-xs text-muted-foreground">Farm admin</p>
           </div>
           <button
