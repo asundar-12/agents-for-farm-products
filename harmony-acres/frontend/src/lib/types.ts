@@ -137,6 +137,7 @@ export interface AdminDashboard {
   product_count: number;
   total_units: number;
   customer_count: number;
+  // Unit totals from the shopping list (sum of order/subscription quantities).
   order_count: number;
   subscription_count: number;
   non_submitter_count: number;
@@ -176,6 +177,7 @@ export interface ShoppingList {
   lines: ShoppingListLine[];
   total_cost: string;
   customer_count: number;
+  // Unit totals summed from the lines (not the number of order/subscription records).
   order_count: number;
   subscription_count: number;
 }

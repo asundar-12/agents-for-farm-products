@@ -28,18 +28,24 @@ import { cn } from "@/lib/utils";
 const EDITABLE_STATUSES = new Set(["aggregated", "approved"]);
 
 export default function AdminShoppingListPage() {
-  const cycle = useQuery({ queryKey: ["admin", "current-cycle"], queryFn: api.adminCurrentCycle });
+  const cycle = useQuery({
+    queryKey: ["admin", "current-cycle"],
+    queryFn: api.adminCurrentCycle,
+    refetchInterval: 8_000,
+  });
   const cycleId = cycle.data?.id;
 
   const list = useQuery({
     queryKey: ["admin", "shopping-list", cycleId],
     queryFn: () => api.adminShoppingList(cycleId!),
     enabled: !!cycleId,
+    refetchInterval: 8_000,
   });
 
   const data = list.data;
   const editable = data ? EDITABLE_STATUSES.has(data.cycle.status) : false;
   const pill = data ? CYCLE_STATUS[data.cycle.status] : null;
+  const summary = useMemo(() => summarize(data?.lines ?? []), [data]);
 
   // Lines grouped by category, categories alphabetical, so the printout reads
   // like aisles of a shop rather than one flat list.
@@ -92,16 +98,25 @@ export default function AdminShoppingListPage() {
         </div>
       </header>
 
-      {/* Summary strip */}
+      {/* Same total-units figure as the dashboard: sum of every product's
+          order + subscription quantity. Not a count of submitted orders. */}
       {data && (
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
           <span>
             <strong className="font-medium text-foreground">{money(data.total_cost)}</strong> total
           </span>
-          <span>{data.lines.length} products</span>
-          <span>{data.order_count} orders</span>
-          <span>{data.subscription_count} subscriptions</span>
-          <span>{data.customer_count} customers</span>
+          <span>
+            {summary.products} {summary.products === 1 ? "product" : "products"}
+          </span>
+          <span>
+            {summary.totalUnits} {summary.totalUnits === 1 ? "unit" : "units"}
+          </span>
+          <span>
+            {summary.fromSubscriptions} from subscriptions
+          </span>
+          <span>
+            {summary.customers} {summary.customers === 1 ? "customer" : "customers"}
+          </span>
         </div>
       )}
 
@@ -290,6 +305,26 @@ function LineRow({
 }
 
 // --- helpers ----------------------------------------------------------------
+
+function summarize(lines: ShoppingListLine[]) {
+  // totalUnits matches the dashboard: each line's combined order +
+  // subscription quantity, summed across products.
+  let fromSubscriptions = 0;
+  const people = new Set<string>();
+  for (const line of lines) {
+    const subscribed = line.customers.filter((c) => c.source === "subscription");
+    fromSubscriptions += subscribed.length
+      ? subscribed.reduce((n, c) => n + c.quantity, 0)
+      : line.subscription_quantity;
+    for (const c of line.customers) people.add(c.user_id);
+  }
+  return {
+    products: lines.length,
+    totalUnits: lines.reduce((n, line) => n + line.total_quantity, 0),
+    fromSubscriptions,
+    customers: people.size,
+  };
+}
 
 function groupByCategory(lines: ShoppingListLine[]): { category: string; lines: ShoppingListLine[] }[] {
   const byCategory = new Map<string, ShoppingListLine[]>();

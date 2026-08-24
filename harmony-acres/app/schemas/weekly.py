@@ -5,6 +5,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.models.weekly import CycleStatus
+from app.schemas.subscription import SubscriptionRead
 
 
 class WeeklyCycleRead(BaseModel):
@@ -96,7 +97,11 @@ class ShoppingList(BaseModel):
     cycle: WeeklyCycleRead
     lines: list[ShoppingListLine]
     total_cost: Decimal
+    # Unique people who appear on any line (order and/or subscription).
     customer_count: int
+    # Unit totals from the lines — the same numbers as summing
+    # `order_quantity` / `subscription_quantity` across products, so the
+    # headline strip matches the expanded customer rows.
     order_count: int
     subscription_count: int
 
@@ -175,3 +180,15 @@ class CycleSummary(BaseModel):
     subscription_count: int
     non_submitter_count: int
     spike_count: int
+
+
+class AdminCustomerSubscriptions(BaseModel):
+    user_id: uuid.UUID
+    full_name: str
+    email: str
+    subscriptions: list[SubscriptionRead]
+
+
+class AdminSubscriptionsForWeek(BaseModel):
+    cycle: WeeklyCycleRead
+    customers: list[AdminCustomerSubscriptions]

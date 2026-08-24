@@ -57,9 +57,16 @@ async def test_totals_sum_orders_and_subscriptions(db):
     assert line.total_quantity == 6
     assert line.effective_quantity == 6
     assert line.line_total == Decimal("39.00")  # 6 * 6.50
+    # Headline counts are unit totals / unique people from the lines, not
+    # the number of order or subscription *records*.
     assert sl.customer_count == 3
-    assert sl.order_count == 2
+    assert sl.order_count == 5
     assert sl.subscription_count == 1
+    assert sum(c.quantity for c in line.customers if c.source == "order") == line.order_quantity
+    assert (
+        sum(c.quantity for c in line.customers if c.source == "subscription")
+        == line.subscription_quantity
+    )
 
 
 async def test_customer_breakdown_lists_each_participant(db):
@@ -147,6 +154,25 @@ async def test_small_movement_is_not_a_spike(db):
     line = next(l for l in sl.lines if l.product_id == product.id)
     assert line.delta == 1
     assert line.is_spike is False  # only +1 unit, below the absolute floor
+
+
+async def test_delta_falls_back_to_live_demand_without_snapshot(db):
+    product = await make_product(db, price="2.00")
+    prev = await make_cycle(
+        db, week_start=date.today() - timedelta(days=14), status=CycleStatus.open
+    )
+    prev_user = await make_user(db, email="prev@test.com")
+    await make_submitted_order(db, user=prev_user, cycle=prev, product=product, quantity=4)
+
+    cur = await make_cycle(db, week_start=date.today())
+    user = await make_user(db)
+    await make_submitted_order(db, user=user, cycle=cur, product=product, quantity=10)
+
+    sl = await aggregation_service.get_shopping_list(db, cur.id)
+    line = next(l for l in sl.lines if l.product_id == product.id)
+    assert line.previous_total == 4
+    assert line.delta == 6
+    assert line.is_spike is True
 
 
 # --- Admin override of a line ------------------------------------------------

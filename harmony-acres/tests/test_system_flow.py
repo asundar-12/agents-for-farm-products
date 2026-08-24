@@ -46,7 +46,7 @@ async def test_full_week_lifecycle_end_to_end(client, db):
     dash = await client.get("/admin/dashboard", headers=ah)
     assert dash.status_code == 200
     cycle_id = dash.json()["cycle"]["id"]
-    assert dash.json()["order_count"] == 1
+    assert dash.json()["order_count"] == 4
 
     # 3. Aggregate -> the shopping list shows 4 units of the product.
     agg = await client.post(f"/admin/cycles/{cycle_id}/aggregate", headers=ah)

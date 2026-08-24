@@ -30,7 +30,10 @@ from app.models.order import Order, OrderItem, OrderStatus
 from app.models.product import Product
 from app.models.subscription import Subscription, SubscriptionItem, SubscriptionStatus
 from app.models.weekly import CycleStatus, WeeklyCycle, WeeklyOrderLine
+from app.schemas.subscription import SubscriptionRead
 from app.schemas.weekly import (
+    AdminCustomerSubscriptions,
+    AdminSubscriptionsForWeek,
     CustomerBreakdownEntry,
     CycleSummary,
     NonSubmitter,
@@ -54,6 +57,11 @@ _SPIKE_MIN_UNITS = 3
 # Aggregation may be re-run while the admin is still reviewing, but not after
 # they've signed off — past this point the snapshot is what was actually bought.
 _REAGGREGATABLE_STATUSES = (CycleStatus.open, CycleStatus.locked, CycleStatus.aggregated)
+
+# After the farm order is placed, line quantities come from the snapshot so a
+# later subscription edit can't move what was already bought. Until then we
+# keep using live demand so the customer breakdown and the line totals match.
+_FROZEN_STATUSES = (CycleStatus.ordered, CycleStatus.received, CycleStatus.closed)
 
 
 def subscription_due_in_cycle(subscription: Subscription, cycle: WeeklyCycle) -> bool:
@@ -198,11 +206,11 @@ async def aggregate_cycle(db: AsyncSession, cycle: WeeklyCycle) -> WeeklyCycle:
 
 
 async def _previous_totals(db: AsyncSession, cycle: WeeklyCycle) -> dict[uuid.UUID, int]:
-    """Last aggregated cycle's per-product totals, for week-over-week deltas.
+    """Prior cycle's per-product totals, for week-over-week deltas.
 
-    Looks at the most recent *earlier* cycle that actually has lines, not
-    simply the previous calendar week — a skipped or never-aggregated week
-    would otherwise blank out every delta.
+    Looks at the most recent *earlier* cycle. Prefers a frozen snapshot; if
+    that week was never aggregated, falls back to live `collect_demand` so
+    deltas still work.
     """
     stmt = (
         select(WeeklyCycle)
@@ -210,10 +218,13 @@ async def _previous_totals(db: AsyncSession, cycle: WeeklyCycle) -> dict[uuid.UU
         .order_by(WeeklyCycle.week_start.desc())
         .options(selectinload(WeeklyCycle.lines))
     )
-    for previous in (await db.scalars(stmt)).all():
-        if previous.lines:
-            return {line.product_id: line.total_quantity for line in previous.lines}
-    return {}
+    previous = (await db.scalars(stmt)).first()
+    if previous is None:
+        return {}
+    if previous.lines:
+        return {line.product_id: line.total_quantity for line in previous.lines}
+    live = await collect_demand(db, previous)
+    return {product_id: entry.total_quantity for product_id, entry in live.items()}
 
 
 def _movement(total: int, previous: int | None) -> tuple[int | None, float | None, bool]:
@@ -242,40 +253,39 @@ async def get_shopping_list(db: AsyncSession, cycle_id: uuid.UUID) -> ShoppingLi
     cycle = await cycle_service.get_cycle_with_lines(db, cycle_id)
     demand = await collect_demand(db, cycle)
     previous = await _previous_totals(db, cycle)
+    snapshot = {line.product_id: line for line in cycle.lines}
+    frozen = cycle.status in _FROZEN_STATUSES
 
-    # Prefer the frozen snapshot; fall back to live demand for a cycle that
-    # hasn't been aggregated yet. Live demand carries no override
-    # (adjusted=None), since overrides can only be set on an aggregated line.
-    if cycle.lines:
-        rows = [
-            (
-                line.product,
-                line.order_quantity,
-                line.subscription_quantity,
-                line.total_quantity,
-                line.adjusted_quantity,
-                line.effective_quantity,
-                Decimal(str(line.unit_price)),
-            )
-            for line in cycle.lines
-        ]
-    else:
-        rows = [
-            (
-                entry.product,
-                entry.order_quantity,
-                entry.subscription_quantity,
-                entry.total_quantity,
-                None,
-                entry.total_quantity,
-                Decimal(str(entry.product.unit_price)),
-            )
-            for entry in demand.values()
-        ]
+    # Live demand while the week is still moving, so line totals match the
+    # expanded customer rows. The snapshot once the farm order is placed, or
+    # when there is no live demand (a test/admin snapshot with no orders).
+    product_ids = set(demand)
+    if frozen or not product_ids:
+        product_ids |= set(snapshot)
 
     lines: list[ShoppingListLine] = []
     total_cost = Decimal("0")
-    for product, order_qty, sub_qty, total_qty, adjusted_qty, effective_qty, unit_price in rows:
+    for product_id in product_ids:
+        live = demand.get(product_id)
+        snap = snapshot.get(product_id)
+        product = live.product if live is not None else snap.product
+        customers = list(live.customers) if live is not None else []
+
+        if live is not None and not frozen:
+            order_qty = live.order_quantity
+            sub_qty = live.subscription_quantity
+            total_qty = live.total_quantity
+            unit_price = Decimal(str(product.unit_price))
+        elif snap is not None:
+            order_qty = snap.order_quantity
+            sub_qty = snap.subscription_quantity
+            total_qty = snap.total_quantity
+            unit_price = Decimal(str(snap.unit_price))
+        else:
+            continue
+
+        adjusted_qty = snap.adjusted_quantity if snap is not None else None
+        effective_qty = adjusted_qty if adjusted_qty is not None else total_qty
         line_total = unit_price * effective_qty
         total_cost += line_total
         # Deltas track real demand, not the admin's override — a spike means
@@ -299,12 +309,7 @@ async def get_shopping_list(db: AsyncSession, cycle_id: uuid.UUID) -> ShoppingLi
                 delta=delta,
                 delta_pct=delta_pct,
                 is_spike=is_spike,
-                # Breakdown always comes from live rows: submitted orders are
-                # frozen anyway, and the snapshot doesn't store per-customer detail.
-                customers=sorted(
-                    demand[product.id].customers if product.id in demand else [],
-                    key=lambda c: (-c.quantity, c.full_name),
-                ),
+                customers=sorted(customers, key=lambda c: (-c.quantity, c.full_name)),
             )
         )
 
@@ -312,17 +317,15 @@ async def get_shopping_list(db: AsyncSession, cycle_id: uuid.UUID) -> ShoppingLi
     # the admin transcribes this list into it by hand.
     lines.sort(key=lambda line: (line.category, line.product_name))
 
-    orders = await _submitted_orders(db, cycle)
-    subscriptions = await _due_subscriptions(db, cycle)
-    participants = {o.user_id for o in orders} | {s.user_id for s in subscriptions}
+    customer_ids = {entry.user_id for line in lines for entry in line.customers}
 
     return ShoppingList(
         cycle=WeeklyCycleRead.model_validate(cycle),
         lines=lines,
         total_cost=total_cost,
-        customer_count=len(participants),
-        order_count=len(orders),
-        subscription_count=len(subscriptions),
+        customer_count=len(customer_ids),
+        order_count=sum(line.order_quantity for line in lines),
+        subscription_count=sum(line.subscription_quantity for line in lines),
     )
 
 
@@ -446,4 +449,33 @@ async def get_cycle_summary(db: AsyncSession, cycle_id: uuid.UUID) -> CycleSumma
         subscription_count=shopping_list.subscription_count,
         non_submitter_count=len(non_submitters),
         spike_count=sum(1 for line in shopping_list.lines if line.is_spike),
+    )
+
+
+async def list_due_subscriptions_by_customer(
+    db: AsyncSession, cycle: WeeklyCycle
+) -> AdminSubscriptionsForWeek:
+    """Active subscriptions due in this cycle, grouped by customer (admin included)."""
+    due = await _due_subscriptions(db, cycle)
+    by_user: dict[uuid.UUID, list[Subscription]] = {}
+    users: dict[uuid.UUID, User] = {}
+    for subscription in due:
+        by_user.setdefault(subscription.user_id, []).append(subscription)
+        users[subscription.user_id] = subscription.user
+
+    customers = []
+    for user_id, subs in sorted(by_user.items(), key=lambda kv: users[kv[0]].full_name.lower()):
+        user = users[user_id]
+        customers.append(
+            AdminCustomerSubscriptions(
+                user_id=user.id,
+                full_name=user.full_name,
+                email=user.email,
+                subscriptions=[SubscriptionRead.model_validate(s) for s in subs],
+            )
+        )
+
+    return AdminSubscriptionsForWeek(
+        cycle=WeeklyCycleRead.model_validate(cycle),
+        customers=customers,
     )
